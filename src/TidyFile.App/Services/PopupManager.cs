@@ -92,11 +92,13 @@ public sealed class PopupManager
         }
     }
 
-    private void MoveFile(string path, string destinationFolder, string? ruleName)
+    // async void: an event handler whose errors are all caught below. The popup has already closed,
+    // so the next one can show while a large cross-drive move is still copying.
+    private async void MoveFile(string path, string destinationFolder, string? ruleName)
     {
         try
         {
-            var entry = _mover.Move(path, destinationFolder, ruleName);
+            var entry = await _mover.MoveAsync(path, destinationFolder, ruleName); // Resumes on the UI thread.
             Log.Info($"Moved '{entry.From}' -> '{entry.To}' (rule: {ruleName ?? "manual"}).");
             _tray.ShowInfo("Moved", $"{Path.GetFileName(entry.To)} → {PathTokens.Shorten(destinationFolder)}");
         }

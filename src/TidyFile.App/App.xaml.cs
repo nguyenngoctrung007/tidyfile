@@ -19,6 +19,7 @@ namespace TidyFile.App;
 public partial class App : Application
 {
     private const string SingleInstanceMutexName = @"Local\TidyFile.SingleInstance";
+    private static readonly TimeSpan MoveFinishTimeout = TimeSpan.FromMinutes(1);
 
     private Mutex? _singleInstance;
     private bool _ownsMutex;
@@ -105,6 +106,13 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         Log.Info("TidyFile exiting.");
+
+        // Let a running move finish: cutting off a cross-drive copy leaves a partial file at the destination.
+        if (_mover is not null && !_mover.WaitUntilIdle(MoveFinishTimeout))
+        {
+            Log.Warn("A file move was still running at exit.");
+        }
+
         _watcher?.Dispose();
         _tray?.Dispose();
 
@@ -251,11 +259,12 @@ public partial class App : Application
         Log.Info(paused ? "Paused." : "Resumed.");
     }
 
-    private void OnUndoRequested(HistoryEntry entry)
+    // async void: an event handler whose errors are all caught below.
+    private async void OnUndoRequested(HistoryEntry entry)
     {
         try
         {
-            var undo = _mover.Undo(entry);
+            var undo = await _mover.UndoAsync(entry); // Resumes on the UI thread.
             Log.Info($"Undid move: '{undo.From}' -> '{undo.To}'.");
             _tray.ShowInfo("Undone", $"{Path.GetFileName(undo.To)} is back in {PathTokens.Shorten(Path.GetDirectoryName(undo.To) ?? "")}");
         }

@@ -86,13 +86,13 @@ Later:
 
 ## Roadmap
 
-- **Phase 2 — Smart:**
-  - Read the download source URL from the `Zone.Identifier` alternate data stream (`path + ":Zone.Identifier"`, `HostUrl=` / `ReferrerUrl=`) and use the domain as a signal.
-  - Learn from the user's choices in `history.jsonl` (extension, name tokens and domain → destination) and rank those higher.
-  - Add an "Always do this" button in the popup that creates a rule.
-  - Allow auto-move for trusted rules, showing a "Moved to X — Undo" toast instead of the popup.
-  - Group bursts of files into a single popup.
-  - Move files off the UI thread (cross-drive moves copy the whole file).
+- **Phase 2 — Smart.** Agreed with the owner on 2026-10-13. One commit per step, in this order:
+  1. ✅ **Moves off the UI thread.** `MoveService.MoveAsync` / `UndoAsync` run on the thread pool, one move at a time (a semaphore, so two moves can't pick the same free name). `OnExit` waits up to 1 minute for a running move.
+  2. **Download source.** Read the `Zone.Identifier` alternate data stream (`path + ":Zone.Identifier"`, `HostUrl=` / `ReferrerUrl=`). Show the domain in the popup ("from github.com"), and let rules match on it (`"sources": ["github.com"]`). The domain is a rule condition and a learning signal, **never a suggestion on its own** (browsers don't always write it). It never leaves the PC.
+  3. **Learn from choices** in `history.jsonl` (extension, domain, name tokens → destination). Needs **at least 2 consistent moves**; a learned suggestion always ranks **below an extension + name rule (max 0.85)**; undone moves count against it. Load history once and keep it in memory (fixes item 8).
+  4. **"Always do this"** in the popup creates the rule **immediately**, with a toast linking to Settings. It doesn't open Settings.
+  5. **Auto-move:** **off by default, opt-in per rule** in Settings, **only for user rules, never learned suggestions**. Shows a "Moved X to Y · Undo" toast instead of the popup. Still logged and undoable.
+  6. **Group bursts** into one popup: deferred, revisit after 1–5 are in use.
 - **Phase 3 — Cleanup:** scan the existing clutter in watched folders and offer batch suggestions; detect duplicates by hash.
 - **Phase 4 — AI (optional):** AI suggestions for files no rule matches. Send only metadata (name, extension, size, domain), never file contents, and add a privacy switch in Settings.
 

@@ -45,6 +45,50 @@ public class MoveServiceTests
     }
 
     [Fact]
+    public async Task MoveAsync_and_UndoAsync_round_trip()
+    {
+        using var temp = new TempFolder();
+        var history = new HistoryStore(temp.Combine("history.jsonl"));
+        var service = new MoveService(history);
+        var source = temp.CreateFile(Path.Combine("Downloads", "photo.png"));
+
+        var move = await service.MoveAsync(source, temp.Combine("Pictures"), "Images");
+        Assert.True(File.Exists(move.To));
+
+        var undo = await service.UndoAsync(move);
+        Assert.Equal(source, undo.To);
+        Assert.True(File.Exists(source));
+        Assert.Empty(history.RecentUndoableMoves());
+    }
+
+    [Fact]
+    public async Task Simultaneous_moves_of_same_named_files_get_different_names()
+    {
+        using var temp = new TempFolder();
+        var service = new MoveService(new HistoryStore(temp.Combine("history.jsonl")));
+        var destination = temp.Combine("Docs");
+        var sources = Enumerable.Range(0, 8)
+            .Select(i => temp.CreateFile(Path.Combine($"In{i}", "report.pdf"), $"copy {i}"))
+            .ToList();
+
+        var moves = await Task.WhenAll(sources.Select(s => service.MoveAsync(s, destination, null)));
+
+        Assert.Equal(8, moves.Select(m => m.To).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Equal(8, Directory.GetFiles(destination).Length);
+        Assert.True(service.WaitUntilIdle(TimeSpan.Zero));
+    }
+
+    [Fact]
+    public async Task MoveAsync_reports_failures_through_the_task()
+    {
+        using var temp = new TempFolder();
+        var service = new MoveService(new HistoryStore(temp.Combine("history.jsonl")));
+
+        await Assert.ThrowsAsync<FileNotFoundException>(() => service.MoveAsync(temp.Combine("nope.txt"), temp.Combine("Docs"), null));
+        Assert.True(service.WaitUntilIdle(TimeSpan.Zero)); // A failed move must not keep the lock.
+    }
+
+    [Fact]
     public void Moving_a_missing_file_throws()
     {
         using var temp = new TempFolder();

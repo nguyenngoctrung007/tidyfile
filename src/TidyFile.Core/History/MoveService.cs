@@ -2,10 +2,14 @@ using TidyFile.Core.Files;
 
 namespace TidyFile.Core.History;
 
-/// <summary>Moves files, records every move in history, and can undo them.</summary>
+/// <summary>
+/// Moves files, records every move in history, and can undo them.
+/// Moves run one at a time: two moves into the same folder could otherwise pick the same free name.
+/// </summary>
 public sealed class MoveService
 {
     private readonly HistoryStore _history;
+    private readonly SemaphoreSlim _oneAtATime = new(1, 1);
 
     public MoveService(HistoryStore history)
     {
@@ -21,19 +25,52 @@ public sealed class MoveService
     /// <summary>Called when a move announced through <see cref="ExpectIncoming"/> failed.</summary>
     public Action<string>? CancelIncoming { get; set; }
 
-    public HistoryEntry Move(string sourcePath, string destinationFolder, string? ruleName)
+    /// <summary>
+    /// <see cref="Move"/> on a background thread. A move to another drive copies the whole file,
+    /// which would otherwise freeze the popup and the tray menu.
+    /// </summary>
+    public Task<HistoryEntry> MoveAsync(string sourcePath, string destinationFolder, string? ruleName) =>
+        Task.Run(() => Move(sourcePath, destinationFolder, ruleName));
+
+    /// <summary><see cref="Undo"/> on a background thread.</summary>
+    public Task<HistoryEntry> UndoAsync(HistoryEntry move) => Task.Run(() => Undo(move));
+
+    /// <summary>
+    /// Waits until no move is running (used on exit, so a cross-drive copy is not cut off half-way).
+    /// Returns false if <paramref name="timeout"/> passed first.
+    /// </summary>
+    public bool WaitUntilIdle(TimeSpan timeout)
     {
-        if (!File.Exists(sourcePath))
+        if (!_oneAtATime.Wait(timeout))
         {
-            throw new FileNotFoundException("The file no longer exists.", sourcePath);
+            return false;
         }
 
-        var target = FileMover.PlanTarget(sourcePath, destinationFolder);
-        MoveAnnounced(sourcePath, target);
+        _oneAtATime.Release();
+        return true;
+    }
 
-        var entry = new HistoryEntry(Guid.NewGuid(), DateTimeOffset.Now, HistoryAction.Move, sourcePath, target, ruleName);
-        _history.Append(entry);
-        return entry;
+    public HistoryEntry Move(string sourcePath, string destinationFolder, string? ruleName)
+    {
+        _oneAtATime.Wait();
+        try
+        {
+            if (!File.Exists(sourcePath))
+            {
+                throw new FileNotFoundException("The file no longer exists.", sourcePath);
+            }
+
+            var target = FileMover.PlanTarget(sourcePath, destinationFolder);
+            MoveAnnounced(sourcePath, target);
+
+            var entry = new HistoryEntry(Guid.NewGuid(), DateTimeOffset.Now, HistoryAction.Move, sourcePath, target, ruleName);
+            _history.Append(entry);
+            return entry;
+        }
+        finally
+        {
+            _oneAtATime.Release();
+        }
     }
 
     /// <summary>Moves the file back to where it came from (with a new name if that spot is taken).</summary>
@@ -44,17 +81,25 @@ public sealed class MoveService
             throw new ArgumentException("Only Move entries can be undone.", nameof(move));
         }
 
-        if (!File.Exists(move.To))
+        _oneAtATime.Wait();
+        try
         {
-            throw new FileNotFoundException("The moved file is no longer where TidyFile put it.", move.To);
+            if (!File.Exists(move.To))
+            {
+                throw new FileNotFoundException("The moved file is no longer where TidyFile put it.", move.To);
+            }
+
+            var target = FileMover.GetUniquePath(move.From);
+            MoveAnnounced(move.To, target);
+
+            var entry = new HistoryEntry(Guid.NewGuid(), DateTimeOffset.Now, HistoryAction.Undo, move.To, target, move.RuleName, move.Id);
+            _history.Append(entry);
+            return entry;
         }
-
-        var target = FileMover.GetUniquePath(move.From);
-        MoveAnnounced(move.To, target);
-
-        var entry = new HistoryEntry(Guid.NewGuid(), DateTimeOffset.Now, HistoryAction.Undo, move.To, target, move.RuleName, move.Id);
-        _history.Append(entry);
-        return entry;
+        finally
+        {
+            _oneAtATime.Release();
+        }
     }
 
     private void MoveAnnounced(string source, string target)
