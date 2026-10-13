@@ -28,7 +28,7 @@ When a new file arrives, a small card appears in the bottom-right corner. It sug
 
 - [x] Large moves (e.g. to another drive) run in the background, so the popup and tray never freeze
 - [x] Shows which website a download came from ("from github.com"), and rules can match on it
-- [ ] Learn from your choices
+- [x] Learns from your choices: after you move 2 or more similar files to a folder, it suggests that folder too
 - [ ] "Always do this" button
 - [ ] Move without asking, for rules you trust (opt-in per rule)
 
@@ -96,6 +96,15 @@ Rules are checked against each new file. A file must match every condition a rul
 ```
 
 The website comes from a note browsers attach to downloaded files. It is read on your PC and never sent anywhere. Not every browser or drive keeps it (FAT/exFAT drives and some private modes don't), and a rule with `sources` never matches a file whose website isn't known.
+
+### Learning from your choices
+
+Besides your rules, TidyFile looks at where you moved files before (from `history.jsonl`, on your PC only):
+
+- It only learns from files of the **same type**. Files from the **same website** or with **similar names** (e.g. both contain "invoice") count more.
+- A folder is suggested after **2 or more** such moves. Moves you undid count against it.
+- The popup says why, e.g. "You moved 4 PDF files from bank.com here".
+- A rule that matches both the file type and the name always ranks above a learned suggestion.
 
 Folder tokens you can use: `{Home}`, `{Desktop}`, `{Documents}`, `{Downloads}`, `{Pictures}`, `{Music}`, `{Videos}`. Environment variables such as `%OneDrive%` also work.
 

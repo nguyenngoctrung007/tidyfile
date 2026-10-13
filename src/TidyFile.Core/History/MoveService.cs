@@ -29,8 +29,8 @@ public sealed class MoveService
     /// <see cref="Move"/> on a background thread. A move to another drive copies the whole file,
     /// which would otherwise freeze the popup and the tray menu.
     /// </summary>
-    public Task<HistoryEntry> MoveAsync(string sourcePath, string destinationFolder, string? ruleName) =>
-        Task.Run(() => Move(sourcePath, destinationFolder, ruleName));
+    public Task<HistoryEntry> MoveAsync(string sourcePath, string destinationFolder, string? ruleName, string? sourceDomain = null) =>
+        Task.Run(() => Move(sourcePath, destinationFolder, ruleName, sourceDomain));
 
     /// <summary><see cref="Undo"/> on a background thread.</summary>
     public Task<HistoryEntry> UndoAsync(HistoryEntry move) => Task.Run(() => Undo(move));
@@ -50,7 +50,8 @@ public sealed class MoveService
         return true;
     }
 
-    public HistoryEntry Move(string sourcePath, string destinationFolder, string? ruleName)
+    /// <param name="sourceDomain">Website the file was downloaded from, if known; recorded for learning.</param>
+    public HistoryEntry Move(string sourcePath, string destinationFolder, string? ruleName, string? sourceDomain = null)
     {
         _oneAtATime.Wait();
         try
@@ -63,7 +64,8 @@ public sealed class MoveService
             var target = FileMover.PlanTarget(sourcePath, destinationFolder);
             MoveAnnounced(sourcePath, target);
 
-            var entry = new HistoryEntry(Guid.NewGuid(), DateTimeOffset.Now, HistoryAction.Move, sourcePath, target, ruleName);
+            var entry = new HistoryEntry(Guid.NewGuid(), DateTimeOffset.Now, HistoryAction.Move, sourcePath, target, ruleName,
+                Source: sourceDomain);
             _history.Append(entry);
             return entry;
         }
@@ -92,7 +94,7 @@ public sealed class MoveService
             var target = FileMover.GetUniquePath(move.From);
             MoveAnnounced(move.To, target);
 
-            var entry = new HistoryEntry(Guid.NewGuid(), DateTimeOffset.Now, HistoryAction.Undo, move.To, target, move.RuleName, move.Id);
+            var entry = new HistoryEntry(Guid.NewGuid(), DateTimeOffset.Now, HistoryAction.Undo, move.To, target, move.RuleName, move.Id, move.Source);
             _history.Append(entry);
             return entry;
         }

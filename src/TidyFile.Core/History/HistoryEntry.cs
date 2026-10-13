@@ -14,6 +14,7 @@ public enum HistoryAction
 /// <param name="To">Full path after the action.</param>
 /// <param name="RuleName">Rule that suggested the destination, or null if the user browsed.</param>
 /// <param name="UndoOf">For Undo entries: the Id of the Move that was reverted.</param>
+/// <param name="Source">Website the file was downloaded from (e.g. "github.com"), if known. Used for learning.</param>
 public sealed record HistoryEntry(
     Guid Id,
     DateTimeOffset Timestamp,
@@ -21,4 +22,5 @@ public sealed record HistoryEntry(
     string From,
     string To,
     string? RuleName = null,
-    Guid? UndoOf = null);
+    Guid? UndoOf = null,
+    string? Source = null);

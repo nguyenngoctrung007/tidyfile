@@ -34,7 +34,37 @@ public class HistoryStoreTests
         File.AppendAllText(path, "{ this is not json" + Environment.NewLine);
         store.Append(new HistoryEntry(Guid.NewGuid(), DateTimeOffset.Now, HistoryAction.Move, "c", "d"));
 
-        Assert.Equal(2, store.ReadAll().Count);
+        Assert.Equal(2, new HistoryStore(path).ReadAll().Count); // A fresh store reads the file from disk.
+    }
+
+    [Fact]
+    public void Entries_are_kept_in_memory_after_the_first_read()
+    {
+        using var temp = new TempFolder();
+        var path = temp.Combine("history.jsonl");
+        var store = new HistoryStore(path);
+        store.Append(new HistoryEntry(Guid.NewGuid(), DateTimeOffset.Now, HistoryAction.Move, "a", "b"));
+        Assert.Single(store.ReadAll());
+
+        File.Delete(path); // Not re-read...
+        store.Append(new HistoryEntry(Guid.NewGuid(), DateTimeOffset.Now, HistoryAction.Move, "c", "d", Source: "github.com"));
+
+        var all = store.ReadAll(); // ...but appends still show up.
+        Assert.Equal(2, all.Count);
+        Assert.Equal("github.com", all[1].Source);
+        Assert.Single(new HistoryStore(path).ReadAll()); // And they were written to disk.
+    }
+
+    [Fact]
+    public void Old_lines_without_a_source_still_load()
+    {
+        using var temp = new TempFolder();
+        var path = temp.CreateFile("history.jsonl",
+            "{\"id\":\"6f1c3a2e-0000-0000-0000-000000000001\",\"timestamp\":\"2026-10-01T10:00:00+02:00\",\"action\":\"Move\",\"from\":\"a\",\"to\":\"b\",\"ruleName\":\"Docs\"}\n");
+
+        var entry = Assert.Single(new HistoryStore(path).ReadAll());
+        Assert.Null(entry.Source);
+        Assert.Equal("Docs", entry.RuleName);
     }
 
     [Fact]

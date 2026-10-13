@@ -72,7 +72,7 @@ public partial class App : Application
         _mover = new MoveService(history);
         _rules = new RulesProvider(_paths.RulesFile);
         _tray = new TrayIcon(history, _paths);
-        _popups = new PopupManager(_rules, _mover, _settings, _tray);
+        _popups = new PopupManager(_rules, _mover, history, _settings, _tray);
 
         _rules.ProblemsFound += problems =>
         {

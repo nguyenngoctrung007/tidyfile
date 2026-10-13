@@ -62,6 +62,7 @@ tests/TidyFile.App.Tests/   xUnit, net10.0-windows: SettingsViewModel, RuleItem 
 - **A running TidyFile locks its `bin\Debug` DLLs**, so `dotnet build` fails with MSB3027. Exit it from the tray, or build elsewhere: `dotnet build --artifacts-path <folder>` then `dotnet test --no-build --artifacts-path <folder>`.
 - **`UseWPF` drops `System.IO` from the implicit usings** (WPF has its own `Path` shape). The App test project adds `<Using Include="System.IO" />`.
 - **Tuple element names `Rest` and `ItemN` are reserved** (CS8126).
+- **`HistoryStore` caches the file after the first read.** Hand edits to `history.jsonl` while the app runs are not seen until restart. Tests that check reading from disk must use a new `HistoryStore`.
 
 ## Status
 
@@ -83,14 +84,14 @@ Fixed:
 Later:
 
 7. **Debounce the rule tester.** It rebuilds the RuleEngine on every keystroke. Wait about 150 ms after typing stops if the rule list grows large.
-8. **History grows forever.** `HistoryStore.ReadAll()` reads the whole file every time the tray menu opens. Trim or compact old entries (Phase 2).
+8. **History file grows forever.** Reading is fixed (kept in memory since Phase 2.3, learning uses the last 5000 moves), but `history.jsonl` itself is never trimmed. Compact it once it gets large (e.g. > 10 MB).
 
 ## Roadmap
 
 - **Phase 2 — Smart.** Agreed with the owner on 2026-10-13. One commit per step, in this order:
   1. ✅ **Moves off the UI thread.** `MoveService.MoveAsync` / `UndoAsync` run on the thread pool, one move at a time (a semaphore, so two moves can't pick the same free name). `OnExit` waits up to 1 minute for a running move.
   2. ✅ **Download source.** `Files/DownloadSource` reads the `Zone.Identifier` alternate data stream (`path + ":Zone.Identifier"`, `HostUrl=` / `ReferrerUrl=`). Show the domain in the popup ("from github.com"), and let rules match on it (`"sources": ["github.com"]`). The domain is a rule condition and a learning signal, **never a suggestion on its own** (browsers don't always write it). It never leaves the PC.
-  3. **Learn from choices** in `history.jsonl` (extension, domain, name tokens → destination). Needs **at least 2 consistent moves**; a learned suggestion always ranks **below an extension + name rule (max 0.85)**; undone moves count against it. Load history once and keep it in memory (fixes item 8).
+  3. ✅ **Learn from choices.** `Learning/ChoiceLearner` (pure, tested): only past moves of the **same extension** count. Evidence groups: same website (0.70–0.85), shared name word (0.65–0.80), extension only (0.50–0.65), plus up to 0.15 for consistency (share of those moves that went to the folder). Needs **net ≥ 2 moves** (undone moves subtract); **max 0.85**, below an extension + name rule; skips deleted folders and the file's own folder; considers the last 5000 moves. `ChoiceLearner.Merge` combines with rule suggestions; for a shared folder it **keeps the rule's entry** (so `RuleName` is still recorded) with the higher confidence. `HistoryEntry.Source` stores the website. `HistoryStore` loads once and keeps entries in memory.
   4. **"Always do this"** in the popup creates the rule **immediately**, with a toast linking to Settings. It doesn't open Settings.
   5. **Auto-move:** **off by default, opt-in per rule** in Settings, **only for user rules, never learned suggestions**. Shows a "Moved X to Y · Undo" toast instead of the popup. Still logged and undoable.
   6. **Group bursts** into one popup: deferred, revisit after 1–5 are in use.

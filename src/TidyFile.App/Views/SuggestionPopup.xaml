@@ -64,7 +64,7 @@
                  Foreground="{StaticResource TextMuted}"
                  TextWrapping="Wrap"
                  Visibility="Collapsed"
-                 Text="No rule matches this file yet. Use Browse… to pick a folder." />
+                 Text="Nothing to suggest for this file yet. Use Browse… to pick a folder." />
 
       <!-- Footer -->
       <DockPanel Margin="0,4,0,0" LastChildFill="False">

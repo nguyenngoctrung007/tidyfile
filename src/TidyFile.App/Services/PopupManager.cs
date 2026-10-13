@@ -6,6 +6,7 @@ using TidyFile.App.Views;
 using TidyFile.Core.Diagnostics;
 using TidyFile.Core.Files;
 using TidyFile.Core.History;
+using TidyFile.Core.Learning;
 using TidyFile.Core.Paths;
 using TidyFile.Core.Rules;
 using TidyFile.Core.Storage;
@@ -21,14 +22,16 @@ public sealed class PopupManager
     private readonly Queue<string> _queue = new();
     private readonly RulesProvider _rules;
     private readonly MoveService _mover;
+    private readonly HistoryStore _history;
     private readonly AppSettings _settings;
     private readonly TrayIcon _tray;
     private SuggestionPopup? _current;
 
-    public PopupManager(RulesProvider rules, MoveService mover, AppSettings settings, TrayIcon tray)
+    public PopupManager(RulesProvider rules, MoveService mover, HistoryStore history, AppSettings settings, TrayIcon tray)
     {
         _rules = rules;
         _mover = mover;
+        _history = history;
         _settings = settings;
         _tray = tray;
     }
@@ -74,7 +77,10 @@ public sealed class PopupManager
             IReadOnlyList<Suggestion> suggestions;
             try
             {
-                suggestions = _rules.GetEngine().Suggest(path, _settings.MaxSuggestions, source);
+                var max = _settings.MaxSuggestions;
+                var fromRules = _rules.GetEngine().Suggest(path, max, source);
+                var learned = ChoiceLearner.Suggest(_history.ReadAll(), path, source, max);
+                suggestions = ChoiceLearner.Merge(fromRules, learned, max);
             }
             catch (Exception ex)
             {
@@ -83,7 +89,7 @@ public sealed class PopupManager
             }
 
             var popup = new SuggestionPopup(path, suggestions, TimeSpan.FromSeconds(_settings.PopupSeconds), _queue.Count, source);
-            popup.MoveRequested += (destination, ruleName) => MoveFile(path, destination, ruleName);
+            popup.MoveRequested += (destination, ruleName) => MoveFile(path, destination, ruleName, source?.DisplayDomain);
             popup.Closed += (_, _) =>
             {
                 _current = null;
@@ -98,11 +104,11 @@ public sealed class PopupManager
 
     // async void: an event handler whose errors are all caught below. The popup has already closed,
     // so the next one can show while a large cross-drive move is still copying.
-    private async void MoveFile(string path, string destinationFolder, string? ruleName)
+    private async void MoveFile(string path, string destinationFolder, string? ruleName, string? sourceDomain)
     {
         try
         {
-            var entry = await _mover.MoveAsync(path, destinationFolder, ruleName); // Resumes on the UI thread.
+            var entry = await _mover.MoveAsync(path, destinationFolder, ruleName, sourceDomain); // Resumes on the UI thread.
             Log.Info($"Moved '{entry.From}' -> '{entry.To}' (rule: {ruleName ?? "manual"}).");
             _tray.ShowInfo("Moved", $"{Path.GetFileName(entry.To)} → {PathTokens.Shorten(destinationFolder)}");
         }
