@@ -1,0 +1,15 @@
+<Project>
+  <!--
+    Shared settings for every project in the repo.
+    TidyTfm is the .NET version used everywhere. If you only have the .NET 8 SDK,
+    change it to net8.0 (the code does not use anything newer than .NET 8).
+  -->
+  <PropertyGroup>
+    <TidyTfm>net10.0</TidyTfm>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Version>0.1.0</Version>
+    <Authors>Trung Nguyen</Authors>
+    <Product>TidyFile</Product>
+  </PropertyGroup>
+</Project>

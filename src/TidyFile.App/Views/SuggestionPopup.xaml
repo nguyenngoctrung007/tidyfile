@@ -1,0 +1,98 @@
+<Window x:Class="TidyFile.App.Views.SuggestionPopup"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="TidyFile"
+        Width="400"
+        SizeToContent="Height"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        FontFamily="Segoe UI">
+
+  <!-- Margin leaves room for the drop shadow. -->
+  <Border Margin="12"
+          Padding="14,12,14,10"
+          CornerRadius="8"
+          Background="{StaticResource PopupBackground}"
+          BorderBrush="{StaticResource PopupBorder}"
+          BorderThickness="1">
+    <Border.Effect>
+      <DropShadowEffect BlurRadius="16" ShadowDepth="2" Opacity="0.45" />
+    </Border.Effect>
+
+    <StackPanel>
+      <!-- Header -->
+      <DockPanel LastChildFill="True">
+        <Button DockPanel.Dock="Right"
+                Content="✕"
+                ToolTip="Skip this file"
+                Click="Skip_Click"
+                Style="{StaticResource SecondaryButton}" />
+        <TextBlock x:Name="HeaderText"
+                   VerticalAlignment="Center"
+                   FontSize="12"
+                   Foreground="{StaticResource TextMuted}"
+                   Text="New file" />
+      </DockPanel>
+
+      <!-- File -->
+      <TextBlock x:Name="FileNameText"
+                 Margin="0,4,0,0"
+                 FontSize="15"
+                 FontWeight="SemiBold"
+                 Foreground="{StaticResource TextPrimary}"
+                 TextTrimming="CharacterEllipsis" />
+      <TextBlock x:Name="FileInfoText"
+                 Margin="0,2,0,10"
+                 FontSize="11"
+                 Foreground="{StaticResource TextMuted}" />
+
+      <!-- Suggestions (filled in code) -->
+      <TextBlock x:Name="MoveToLabel"
+                 Margin="0,0,0,6"
+                 FontSize="12"
+                 Foreground="{StaticResource TextMuted}"
+                 Text="Move to:" />
+      <StackPanel x:Name="SuggestionsPanel" />
+      <TextBlock x:Name="NoSuggestionText"
+                 Margin="0,0,0,6"
+                 FontSize="12"
+                 Foreground="{StaticResource TextMuted}"
+                 TextWrapping="Wrap"
+                 Visibility="Collapsed"
+                 Text="No rule matches this file yet. Use Browse… to pick a folder." />
+
+      <!-- Footer -->
+      <DockPanel Margin="0,4,0,0" LastChildFill="False">
+        <TextBlock x:Name="QueueText"
+                   DockPanel.Dock="Left"
+                   VerticalAlignment="Center"
+                   FontSize="11"
+                   Foreground="{StaticResource TextMuted}" />
+        <Button DockPanel.Dock="Right"
+                Content="Skip"
+                Click="Skip_Click"
+                Style="{StaticResource SecondaryButton}" />
+        <Button DockPanel.Dock="Right"
+                Content="Browse…"
+                Click="Browse_Click"
+                Style="{StaticResource SecondaryButton}" />
+      </DockPanel>
+
+      <!-- Time left before the popup closes by itself -->
+      <ProgressBar x:Name="TimeoutBar"
+                   Height="2"
+                   Margin="0,8,0,0"
+                   Minimum="0"
+                   Maximum="1"
+                   Value="1"
+                   BorderThickness="0"
+                   Background="Transparent"
+                   Foreground="{StaticResource Accent}" />
+    </StackPanel>
+  </Border>
+</Window>

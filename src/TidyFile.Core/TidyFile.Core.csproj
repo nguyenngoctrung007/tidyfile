@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Platform-neutral logic: rules, moving, history. No UI here, so it is easy to unit test. -->
+  <PropertyGroup>
+    <TargetFramework>$(TidyTfm)</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>TidyFile.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TidyFile.Core.Tests" />
+  </ItemGroup>
+
+</Project>

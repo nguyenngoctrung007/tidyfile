@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The Windows tray app. WPF draws the popup; WinForms is used only for the tray icon (NotifyIcon),
+    which avoids any third-party NuGet packages.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>$(TidyTfm)-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- Off on purpose: WPF and WinForms share type names (Application, MessageBox, Button...). -->
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>TidyFile</AssemblyName>
+    <RootNamespace>TidyFile.App</RootNamespace>
+    <ApplicationIcon>Assets\tidyfile.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Update="Assets\tidyfile.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TidyFile.Core\TidyFile.Core.csproj" />
+  </ItemGroup>
+
+</Project>
