@@ -19,6 +19,7 @@ dotnet run --project src/TidyFile.App
 - Target framework: `net10.0`, set once in `Directory.Build.props` (`<TidyTfm>`). Changing it to `net8.0` also works.
 - Always run `dotnet build` and `dotnet test` after changes, and fix all errors before reporting done.
 - User data lives in `%LOCALAPPDATA%\TidyFile`: `settings.json`, `rules.json`, `history.jsonl`, `tidyfile.log`.
+- **The owner runs a release copy** from `%LOCALAPPDATA%\Programs\TidyFile\TidyFile.exe` (with `Assets\`). To update it: exit TidyFile from the tray, `dotnet publish src/TidyFile.App -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish`, copy `publish\TidyFile.exe` and `publish\Assets` there, start it again. Because it runs from outside the repo, `dotnet build` no longer hits locked DLLs.
 
 ## Layout
 
