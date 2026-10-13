@@ -26,6 +26,17 @@ public class RuleItemTests
     }
 
     [Fact]
+    public void Auto_move_is_off_by_default_and_shown_in_the_summary()
+    {
+        var item = new RuleItem { Name = "Docs", ExtensionsText = "pdf", Destination = Docs };
+        Assert.False(item.ToRule().AutoMove);
+        Assert.DoesNotContain("without asking", item.Summary);
+
+        item.AutoMove = true;
+        Assert.Contains("without asking", item.Summary);
+    }
+
+    [Fact]
     public void A_non_website_source_is_a_problem()
     {
         var item = new RuleItem { Name = "Bad", SourcesText = "about:blank", Destination = Docs };
@@ -43,6 +54,7 @@ public class RuleItemTests
             Extensions = { "pdf", "png" },
             NamePattern = "invoice|receipt",
             Sources = { "github.com" },
+            AutoMove = true,
             Destination = Docs,
         };
 
@@ -53,6 +65,7 @@ public class RuleItemTests
         Assert.Equal(rule.Extensions, back.Extensions);
         Assert.Equal(rule.NamePattern, back.NamePattern);
         Assert.Equal(rule.Sources, back.Sources);
+        Assert.True(back.AutoMove);
         Assert.Equal(rule.Destination, back.Destination);
     }
 

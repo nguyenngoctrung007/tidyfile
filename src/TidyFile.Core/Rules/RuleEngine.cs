@@ -159,7 +159,7 @@ public sealed class RuleEngine
                 continue; // Suggesting the folder the file is already in is pointless.
             }
 
-            candidates.Add((new Suggestion(destination, $"Rule: {rule.Name}", score, rule.Name), i));
+            candidates.Add((new Suggestion(destination, $"Rule: {rule.Name}", score, rule.Name, rule.AutoMove), i));
         }
 
         return candidates
@@ -170,6 +170,14 @@ public sealed class RuleEngine
             .Take(max)
             .ToList();
     }
+
+    /// <summary>
+    /// The suggestion to move a file to without asking, or null to show the popup.
+    /// Only the best <b>rule</b> counts (pass rule suggestions, not merged ones): learned suggestions never
+    /// move files on their own, and they don't stop a rule the user marked as trusted either.
+    /// </summary>
+    public static Suggestion? AutoMoveChoice(IReadOnlyList<Suggestion> fromRules) =>
+        fromRules.Count > 0 && fromRules[0] is { AutoMove: true, RuleName: not null } best ? best : null;
 
     /// <summary>
     /// Every rule that matches <paramref name="fileName"/>, best first, without removing duplicates.
@@ -187,7 +195,7 @@ public sealed class RuleEngine
             if (score > 0)
             {
                 var rule = _rules[i].Rule;
-                matches.Add((new Suggestion(PathTokens.Expand(rule.Destination), $"Rule: {rule.Name}", score, rule.Name), i));
+                matches.Add((new Suggestion(PathTokens.Expand(rule.Destination), $"Rule: {rule.Name}", score, rule.Name, rule.AutoMove), i));
             }
         }
 

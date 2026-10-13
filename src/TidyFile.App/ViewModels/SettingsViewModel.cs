@@ -238,18 +238,22 @@ public sealed class SettingsViewModel : ObservableObject
         var matches = engine.Explain(name, source);
         if (matches.Count == 0)
         {
-            TestResult = "No rule matches. The popup would only offer Browse….";
+            TestResult = "No rule matches. The popup would offer Browse… and any folders learned from your past moves.";
             return;
         }
 
         // ✓ = shown in the popup. Use the same logic as the popup (it skips duplicate folders).
         var fakePath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "TidyFile rule test", System.IO.Path.GetFileName(name));
-        var shown = engine.Suggest(fakePath, MaxSuggestions, source).Select(s => s.RuleName).ToHashSet();
+        var fromRules = engine.Suggest(fakePath, MaxSuggestions, source);
+        var shown = fromRules.Select(s => s.RuleName).ToHashSet();
 
         var lines = matches
             .Take(8)
             .Select(m => $"{(shown.Contains(m.RuleName) ? "✓" : "·")} {m.RuleName}  →  {PathTokens.Shorten(m.Destination)}  ({m.Confidence:P0})");
-        TestResult = "✓ = shown in the popup" + Environment.NewLine + string.Join(Environment.NewLine, lines);
+        var header = RuleEngine.AutoMoveChoice(fromRules) is { } auto
+            ? $"Moved without asking to {PathTokens.Shorten(auto.Destination)} (rule \"{auto.RuleName}\")."
+            : "✓ = shown in the popup";
+        TestResult = header + Environment.NewLine + string.Join(Environment.NewLine, lines);
     }
 
     private void OnRuleChanged(object? sender, PropertyChangedEventArgs e)

@@ -88,6 +88,7 @@ public partial class App : Application
         _tray.UndoRequested += OnUndoRequested;
         _tray.SettingsRequested += () => OpenSettings();
         _popups.EditRuleRequested += OpenSettings;
+        _popups.UndoRequested += OnUndoRequested;
         _tray.ExitRequested += OnExitRequested;
 
         _rules.GetEngine(); // Creates rules.json on first run and reports problems early.

@@ -110,6 +110,66 @@ public class RuleEngineTests
         Assert.Equal(DefaultRules.Create().Rules.Count, engine.RuleCount);
     }
 
+    // ----- Auto-move -----
+
+    [Fact]
+    public void Auto_move_when_the_best_rule_is_trusted()
+    {
+        var engine = new RuleEngine(new[]
+        {
+            new Rule { Name = "Invoices", Extensions = { "pdf" }, NamePattern = "invoice", Destination = Finance, AutoMove = true },
+            new Rule { Name = "Documents", Extensions = { "pdf" }, Destination = Docs },
+        });
+
+        var choice = RuleEngine.AutoMoveChoice(engine.Suggest(Path.Combine(Downloads, "invoice-1.pdf")));
+
+        Assert.Equal(Finance, choice?.Destination);
+        Assert.Equal("Invoices", choice?.RuleName);
+    }
+
+    [Fact]
+    public void No_auto_move_when_a_better_rule_is_not_trusted()
+    {
+        var engine = new RuleEngine(new[]
+        {
+            new Rule { Name = "Documents", Extensions = { "pdf" }, Destination = Docs, AutoMove = true },
+            new Rule { Name = "Invoices", Extensions = { "pdf" }, NamePattern = "invoice", Destination = Finance },
+        });
+
+        Assert.Null(RuleEngine.AutoMoveChoice(engine.Suggest(Path.Combine(Downloads, "invoice-1.pdf"))));
+        Assert.NotNull(RuleEngine.AutoMoveChoice(engine.Suggest(Path.Combine(Downloads, "notes.pdf"))));
+    }
+
+    [Fact]
+    public void Learned_suggestions_never_auto_move()
+    {
+        var learned = new Suggestion(Docs, "You moved…", 0.85, RuleName: null, AutoMove: true); // Even if mislabelled.
+
+        Assert.Null(RuleEngine.AutoMoveChoice(new[] { learned }));
+        Assert.Null(RuleEngine.AutoMoveChoice(Array.Empty<Suggestion>()));
+    }
+
+    [Fact]
+    public void Disabled_trusted_rule_does_nothing()
+    {
+        var engine = new RuleEngine(new[]
+        {
+            new Rule { Name = "Docs", Enabled = false, Extensions = { "pdf" }, Destination = Docs, AutoMove = true },
+        });
+
+        Assert.Null(RuleEngine.AutoMoveChoice(engine.Suggest(Path.Combine(Downloads, "a.pdf"))));
+    }
+
+    [Fact]
+    public void Auto_move_is_off_for_rules_saved_before_it_existed()
+    {
+        var rule = System.Text.Json.JsonSerializer.Deserialize<Rule>(
+            "{ \"name\": \"Docs\", \"extensions\": [\"pdf\"], \"destination\": \"C:\\\\Docs\" }",
+            TidyFile.Core.Storage.JsonFile.Options)!;
+
+        Assert.False(rule.AutoMove);
+    }
+
     // ----- Download source -----
 
     private static readonly DownloadSource FromGitHub = new("objects.githubusercontent.com", "github.com");

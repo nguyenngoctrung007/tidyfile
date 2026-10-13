@@ -9,6 +9,7 @@ public sealed class RuleItem : ObservableObject
 {
     private string _name = "";
     private bool _enabled = true;
+    private bool _autoMove;
     private string _extensionsText = "";
     private string _namePattern = "";
     private string _sourcesText = "";
@@ -35,6 +36,19 @@ public sealed class RuleItem : ObservableObject
             {
                 OnPropertyChanged(nameof(Problem));
                 OnPropertyChanged(nameof(HasProblem));
+            }
+        }
+    }
+
+    /// <summary>Move matching files without the popup (see <see cref="Rule.AutoMove"/>).</summary>
+    public bool AutoMove
+    {
+        get => _autoMove;
+        set
+        {
+            if (SetField(ref _autoMove, value))
+            {
+                OnPropertyChanged(nameof(Summary));
             }
         }
     }
@@ -109,7 +123,8 @@ public sealed class RuleItem : ObservableObject
                 what += " · from " + string.Join(", ", sources);
             }
 
-            return $"{what}  →  {(string.IsNullOrWhiteSpace(Destination) ? "?" : Destination)}";
+            var summary = $"{what}  →  {(string.IsNullOrWhiteSpace(Destination) ? "?" : Destination)}";
+            return AutoMove ? summary + "  (moves without asking)" : summary;
         }
     }
 
@@ -125,6 +140,7 @@ public sealed class RuleItem : ObservableObject
     {
         _name = rule.Name,
         _enabled = rule.Enabled,
+        _autoMove = rule.AutoMove,
         _extensionsText = string.Join(", ", rule.Extensions),
         _namePattern = rule.NamePattern ?? "",
         _sourcesText = string.Join(", ", rule.Sources),
@@ -135,6 +151,7 @@ public sealed class RuleItem : ObservableObject
     {
         Name = Name.Trim(),
         Enabled = Enabled,
+        AutoMove = AutoMove,
         Extensions = ParseExtensions().ToList(),
         NamePattern = string.IsNullOrWhiteSpace(NamePattern) ? null : NamePattern.Trim(),
         Sources = ParseSources().ToList(),

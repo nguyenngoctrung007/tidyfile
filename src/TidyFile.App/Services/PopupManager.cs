@@ -20,6 +20,9 @@ namespace TidyFile.App.Services;
 public sealed class PopupManager
 {
     private readonly Queue<string> _queue = new();
+
+    // Files whose auto-move failed: show the popup for them instead of trying again.
+    private readonly HashSet<string> _askAnyway = new(StringComparer.OrdinalIgnoreCase);
     private readonly RulesProvider _rules;
     private readonly MoveService _mover;
     private readonly HistoryStore _history;
@@ -44,6 +47,12 @@ public sealed class PopupManager
             return;
         }
 
+        // Decided on arrival, so a trusted file isn't kept waiting behind an open popup.
+        if (!_askAnyway.Remove(path) && TryAutoMove(path))
+        {
+            return;
+        }
+
         _queue.Enqueue(path);
         _current?.UpdateWaitingCount(_queue.Count);
         ShowNext();
@@ -51,6 +60,59 @@ public sealed class PopupManager
 
     /// <summary>Raised with a rule name when the user clicks the "rule added" notification.</summary>
     public event Action<string>? EditRuleRequested;
+
+    /// <summary>Raised when the user clicks the "moved automatically" notification to undo it.</summary>
+    public event Action<HistoryEntry>? UndoRequested;
+
+    /// <summary>Starts a move without a popup if the best matching rule says so. Returns true if it did.</summary>
+    private bool TryAutoMove(string path)
+    {
+        Suggestion? choice;
+        DownloadSource? source;
+        try
+        {
+            source = DownloadSource.Read(path);
+            choice = RuleEngine.AutoMoveChoice(_rules.GetEngine().Suggest(path, 1, source));
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Could not check auto-move rules for '{path}'.", ex);
+            return false; // Fall back to asking.
+        }
+
+        if (choice is null || !File.Exists(path))
+        {
+            return false; // Not trusted (or already gone, which ShowNext skips quietly).
+        }
+
+        AutoMove(path, choice, source);
+        return true;
+    }
+
+    // async void: fire-and-forget whose errors are all caught below.
+    private async void AutoMove(string path, Suggestion choice, DownloadSource? source)
+    {
+        try
+        {
+            var entry = await _mover.MoveAsync(path, choice.Destination, choice.RuleName, source?.DisplayDomain);
+            Log.Info($"Auto-moved '{entry.From}' -> '{entry.To}' (rule: {choice.RuleName}).");
+            _tray.ShowInfo("Moved automatically",
+                $"{Path.GetFileName(entry.To)} → {PathTokens.Shorten(choice.Destination)}{Environment.NewLine}" +
+                $"Rule \"{choice.RuleName}\". Click to undo.",
+                () => UndoRequested?.Invoke(entry));
+        }
+        catch (Exception ex)
+        {
+            // E.g. the destination drive is missing. Ask instead, so the file isn't silently left behind.
+            Log.Error($"Auto-move of '{path}' to '{choice.Destination}' failed; asking instead.", ex);
+            _tray.ShowError("Could not move automatically", ex.Message);
+            if (File.Exists(path))
+            {
+                _askAnyway.Add(path);
+                Enqueue(path);
+            }
+        }
+    }
 
     /// <summary>Closes the current popup and forgets anything waiting (used when pausing).</summary>
     public void Clear()

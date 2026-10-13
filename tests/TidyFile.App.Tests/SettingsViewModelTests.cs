@@ -59,6 +59,7 @@ public class SettingsViewModelTests
         { "move rule", vm => { vm.SelectedRule = vm.Rules[0]; vm.MoveSelectedRule(+1); } },
         { "rename rule", vm => vm.Rules[0].Name = "Renamed" },
         { "disable rule", vm => vm.Rules[1].Enabled = false },
+        { "trust rule", vm => vm.Rules[0].AutoMove = true },
         { "edit existing rule", vm => vm.Rules[1].ExtensionsText = "docx" },
     };
 
@@ -99,6 +100,18 @@ public class SettingsViewModelTests
         vm.TestSource = "https://github.com/x/y";
         Assert.Contains("✓ GitHub zips", vm.TestResult);
         Assert.False(vm.IsDirty); // Testing is not an edit.
+    }
+
+    [Fact]
+    public void Tester_says_when_a_file_would_be_moved_without_asking()
+    {
+        var vm = Create(PdfRule("Docs", Docs));
+        vm.TestFileName = "a.pdf";
+        Assert.StartsWith("✓ = shown in the popup", vm.TestResult);
+
+        vm.Rules[0].AutoMove = true;
+        Assert.StartsWith("Moved without asking to", vm.TestResult);
+        Assert.Contains("\"Docs\"", vm.TestResult);
     }
 
     // ----- Folders -----

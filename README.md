@@ -30,7 +30,7 @@ When a new file arrives, a small card appears in the bottom-right corner. It sug
 - [x] Shows which website a download came from ("from github.com"), and rules can match on it
 - [x] Learns from your choices: after you move 2 or more similar files to a folder, it suggests that folder too
 - [x] "Always do this": tick it in the popup, pick a folder, and TidyFile adds a rule for files like this one
-- [ ] Move without asking, for rules you trust (opt-in per rule)
+- [x] Move without asking, for rules you trust: tick **Move without asking** on a rule in Settings (off by default). A notification lets you undo
 
 ## Requirements
 
@@ -94,6 +94,8 @@ Rules are checked against each new file. A file must match every condition a rul
   ]
 }
 ```
+
+Add `"autoMove": true` to a rule (or tick **Move without asking** in Settings) to skip the popup for it. This only happens when that rule is the best match for the file, never because of a learned suggestion. Every automatic move shows a notification you can click to undo, and it appears under **Recent moves** like any other.
 
 The website comes from a note browsers attach to downloaded files. It is read on your PC and never sent anywhere. Not every browser or drive keeps it (FAT/exFAT drives and some private modes don't), and a rule with `sources` never matches a file whose website isn't known.
 

@@ -230,6 +230,10 @@
                 <TextBlock Style="{StaticResource Hint}" Text="You can use {Documents}, {Downloads}, {Desktop}, {Pictures}, {Music}, {Videos} or {Home}." />
 
                 <CheckBox Content="Enabled" IsChecked="{Binding Enabled}" Margin="0,12,0,0" />
+                <CheckBox Content="Move without asking" IsChecked="{Binding AutoMove}" Margin="0,8,0,0" />
+                <TextBlock Style="{StaticResource Hint}"
+                           Margin="20,2,0,0"
+                           Text="When this is the best matching rule, files are moved straight away and a notification lets you undo. Only for rules you trust." />
                 <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Problem}" />
               </StackPanel>
 

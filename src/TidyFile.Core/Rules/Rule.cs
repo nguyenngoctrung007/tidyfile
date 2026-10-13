@@ -22,6 +22,12 @@ public sealed class Rule
     /// <summary>Websites such as "github.com" (subdomains match too). Files with no known source never match.</summary>
     public List<string> Sources { get; set; } = new();
 
+    /// <summary>
+    /// Move matching files without showing the popup (a notification with Undo is shown instead).
+    /// Only applies when this is the best matching rule. Off by default.
+    /// </summary>
+    public bool AutoMove { get; set; }
+
     /// <summary>Destination folder. Supports tokens like {Documents} and %ENV% variables.</summary>
     public string Destination { get; set; } = "";
 }
