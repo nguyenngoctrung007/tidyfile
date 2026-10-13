@@ -90,7 +90,8 @@ src/
   TidyFile.Core/        Rules, file moves, history (no UI; unit tested)
   TidyFile.App/         WPF tray app: watcher, popup, tray menu
 tests/
-  TidyFile.Core.Tests/  xUnit tests
+  TidyFile.Core.Tests/  xUnit tests for the core
+  TidyFile.App.Tests/   xUnit tests for the Settings window's view models
 ```
 
 ## Roadmap

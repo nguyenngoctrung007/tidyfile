@@ -35,6 +35,7 @@ src/TidyFile.App/         WPF app. ImplicitUsings OFF (see pitfalls).
   Views/                  SuggestionPopup, SettingsWindow
   ViewModels/             ObservableObject, SettingsViewModel, RuleItem, FolderItem
 tests/TidyFile.Core.Tests/  xUnit 2.9.2
+tests/TidyFile.App.Tests/   xUnit, net10.0-windows: SettingsViewModel, RuleItem (no windows created)
 ```
 
 ## Key decisions (don't change without a reason)
@@ -57,6 +58,9 @@ tests/TidyFile.Core.Tests/  xUnit 2.9.2
 - **Errors in WinForms menu handlers** go to `System.Windows.Forms.Application.ThreadException`, not WPF's `DispatcherUnhandledException`. Both are hooked.
 - **Visual Studio can save its stale buffer over files changed outside it.** Tell the user to choose "Reload" if VS asks.
 - **"Start with Windows" stores the path of the exe that is currently running.** Ticking it while running from `bin\Debug` points Windows at the debug build.
+- **A running TidyFile locks its `bin\Debug` DLLs**, so `dotnet build` fails with MSB3027. Exit it from the tray, or build elsewhere: `dotnet build --artifacts-path <folder>` then `dotnet test --no-build --artifacts-path <folder>`.
+- **`UseWPF` drops `System.IO` from the implicit usings** (WPF has its own `Path` shape). The App test project adds `<Using Include="System.IO" />`.
+- **Tuple element names `Rest` and `ItemN` are reserved** (CS8126).
 
 ## Status
 
@@ -72,10 +76,11 @@ Fixed:
 3. **Unsaved changes.** `SettingsViewModel.IsDirty`; `SettingsWindow.ConfirmClose()` asks "Discard them?" on ✕ / Esc / Cancel. Tray Exit asks first too, because a close during shutdown can't be cancelled.
 4. **Rule names.** `RuleEngine.Validate` requires a name (unnamed rules are skipped). `RuleEngine.FindDuplicateNames` feeds a "Save anyway?" warning in Settings; the engine itself doesn't report duplicates.
 5. **`TrayIcon.OpenWithShell`** replaced by `OpenDataFolder()` (no Notepad fallback).
+6. **Tests for the App view models.** `TidyFile.App.Tests`: dirty tracking, extension parsing, duplicate folders and names, moving/adding/deleting rules, `Validate()`, `ApplyTo`.
+- Also fixed: `{Downloads}` uses the real Downloads folder (`KnownFolders`, via `SHGetKnownFolderPath`) instead of assuming `%USERPROFILE%\Downloads`; `WatcherService.IgnoreNext` drops expired entries (moves into unwatched folders never cleared them); an unreadable `settings.json` at startup falls back to defaults with a warning instead of crashing; WFO0003 suppressed (WPF reads DPI awareness from `app.manifest`).
 
 Later:
 
-6. **Tests for the App view models.** Add a `TidyFile.App.Tests` project (net10.0-windows) for SettingsViewModel and RuleItem: extension parsing (`"*.pdf, .DOCX"` → `pdf, docx`), duplicate-folder detection, moving rules, `Validate()`.
 7. **Debounce the rule tester.** It rebuilds the RuleEngine on every keystroke. Wait about 150 ms after typing stops if the rule list grows large.
 8. **History grows forever.** `HistoryStore.ReadAll()` reads the whole file every time the tray menu opens. Trim or compact old entries (Phase 2).
 

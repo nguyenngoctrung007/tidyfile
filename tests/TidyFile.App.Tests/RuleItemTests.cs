@@ -1,0 +1,76 @@
+using TidyFile.App.ViewModels;
+using TidyFile.Core.Rules;
+
+namespace TidyFile.App.Tests;
+
+public class RuleItemTests
+{
+    private static readonly string Docs = Path.Combine(Path.GetTempPath(), "Docs");
+
+    [Fact]
+    public void Extensions_are_cleaned_up_and_deduplicated()
+    {
+        var item = new RuleItem { Name = "Docs", ExtensionsText = "*.pdf, .DOCX;txt  pdf", Destination = Docs };
+
+        Assert.Equal(new[] { "pdf", "docx", "txt" }, item.ToRule().Extensions);
+    }
+
+    [Fact]
+    public void Round_trips_through_Rule()
+    {
+        var rule = new Rule
+        {
+            Name = "Invoices",
+            Enabled = false,
+            Extensions = { "pdf", "png" },
+            NamePattern = "invoice|receipt",
+            Destination = Docs,
+        };
+
+        var back = RuleItem.FromRule(rule).ToRule();
+
+        Assert.Equal(rule.Name, back.Name);
+        Assert.Equal(rule.Enabled, back.Enabled);
+        Assert.Equal(rule.Extensions, back.Extensions);
+        Assert.Equal(rule.NamePattern, back.NamePattern);
+        Assert.Equal(rule.Destination, back.Destination);
+    }
+
+    [Fact]
+    public void Blank_pattern_is_saved_as_null_and_text_is_trimmed()
+    {
+        var rule = new RuleItem { Name = "  Docs ", ExtensionsText = "pdf", NamePattern = "   ", Destination = $" {Docs} " }.ToRule();
+
+        Assert.Equal("Docs", rule.Name);
+        Assert.Null(rule.NamePattern);
+        Assert.Equal(Docs, rule.Destination);
+    }
+
+    [Fact]
+    public void Problem_is_reported_only_for_enabled_rules()
+    {
+        var item = new RuleItem { Name = "", ExtensionsText = "pdf", Destination = Docs };
+        Assert.True(item.HasProblem);
+        Assert.Contains("name", item.Problem);
+
+        item.Enabled = false;
+        Assert.False(item.HasProblem);
+    }
+
+    [Fact]
+    public void Pattern_error_is_shown_for_invalid_regex()
+    {
+        var item = new RuleItem { NamePattern = "(unclosed" };
+
+        Assert.NotNull(item.PatternError);
+
+        item.NamePattern = "^ok";
+        Assert.Null(item.PatternError);
+    }
+
+    [Fact]
+    public void Unnamed_rule_has_a_display_name()
+    {
+        Assert.Equal("(unnamed rule)", new RuleItem { Name = " " }.DisplayName);
+    }
+}
