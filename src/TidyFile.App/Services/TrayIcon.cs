@@ -19,7 +19,6 @@ public sealed class TrayIcon : IDisposable
     private readonly ContextMenuStrip _menu;
     private readonly ToolStripMenuItem _pauseItem;
     private readonly ToolStripMenuItem _recentItem;
-    private readonly ToolStripMenuItem _startupItem;
     private readonly HistoryStore _history;
     private readonly AppPaths _paths;
 
@@ -37,17 +36,17 @@ public sealed class TrayIcon : IDisposable
 
         _recentItem = new ToolStripMenuItem("Recent moves (click to undo)");
 
-        _startupItem = new ToolStripMenuItem("Start with Windows") { Checked = SafeIsStartupEnabled() };
-        _startupItem.Click += (_, _) => ToggleStartup();
+        var settingsItem = new ToolStripMenuItem("Settings…");
+        settingsItem.Font = new Font(settingsItem.Font, FontStyle.Bold); // Default action (double-click).
+        settingsItem.Click += (_, _) => SettingsRequested?.Invoke();
 
         _menu = new ContextMenuStrip();
+        _menu.Items.Add(settingsItem);
+        _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add(_pauseItem);
         _menu.Items.Add(_recentItem);
         _menu.Items.Add(new ToolStripSeparator());
-        _menu.Items.Add("Edit rules…", null, (_, _) => OpenWithShell(_paths.RulesFile));
-        _menu.Items.Add("Edit settings…", null, (_, _) => OpenWithShell(_paths.SettingsFile));
-        _menu.Items.Add("Open TidyFile data folder", null, (_, _) => OpenWithShell(_paths.Root));
-        _menu.Items.Add(_startupItem);
+        _menu.Items.Add("Open TidyFile data folder", null, (_, _) => OpenDataFolder());
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add("Exit", null, (_, _) => ExitRequested?.Invoke());
         _menu.Opening += (_, _) => RebuildRecentMoves();
@@ -59,6 +58,7 @@ public sealed class TrayIcon : IDisposable
             ContextMenuStrip = _menu,
             Visible = true,
         };
+        _notifyIcon.DoubleClick += (_, _) => SettingsRequested?.Invoke();
     }
 
     public event Action<bool>? PauseChanged;
@@ -66,6 +66,8 @@ public sealed class TrayIcon : IDisposable
     public event Action<HistoryEntry>? UndoRequested;
 
     public event Action? ExitRequested;
+
+    public event Action? SettingsRequested;
 
     public void ShowInfo(string title, string text) => ShowBalloon(title, text, ToolTipIcon.Info);
 
@@ -98,50 +100,16 @@ public sealed class TrayIcon : IDisposable
         }
     }
 
-    private void ToggleStartup()
+    private void OpenDataFolder()
     {
         try
         {
-            var enable = !_startupItem.Checked;
-            StartupRegistration.SetEnabled(enable);
-            _startupItem.Checked = enable;
+            Process.Start(new ProcessStartInfo(_paths.Root) { UseShellExecute = true });
         }
         catch (Exception ex)
         {
-            Log.Error("Could not change the start-with-Windows setting.", ex);
-            ShowError("Could not change start-up setting", ex.Message);
-        }
-    }
-
-    private static bool SafeIsStartupEnabled()
-    {
-        try
-        {
-            return StartupRegistration.IsEnabled();
-        }
-        catch (Exception ex)
-        {
-            Log.Error("Could not read the start-with-Windows setting.", ex);
-            return false;
-        }
-    }
-
-    private void OpenWithShell(string path)
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-        }
-        catch (Exception ex) when (File.Exists(path))
-        {
-            // No app is associated with .json files: fall back to Notepad.
-            Log.Warn($"Shell open failed for '{path}' ({ex.Message}); using Notepad.");
-            Process.Start(new ProcessStartInfo("notepad.exe", $"\"{path}\"") { UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"Could not open '{path}'.", ex);
-            ShowError("Could not open", ex.Message);
+            Log.Error($"Could not open '{_paths.Root}'.", ex);
+            ShowError("Could not open the data folder", ex.Message);
         }
     }
 

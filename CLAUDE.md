@@ -1,0 +1,100 @@
+# CLAUDE.md — TidyFile
+
+Context for Claude Code working in this repo. Keep this file up to date when plans or decisions change.
+
+## What this is
+
+TidyFile is a personal Windows tray app (owner: Trung). It watches folders (default: Downloads, Desktop). When a new file finishes arriving, a small popup in the bottom-right corner suggests up to 3 destination folders. One click moves the file. Every move is logged and can be undone.
+
+Goals, in priority order: **fast and light** (about 0% CPU when idle, small memory), **safe** (never overwrites, never deletes, everything can be undone), **unobtrusive** (the popup never steals focus).
+
+## Build, test, run
+
+```powershell
+dotnet build
+dotnet test
+dotnet run --project src/TidyFile.App
+```
+
+- Target framework: `net10.0`, set once in `Directory.Build.props` (`<TidyTfm>`). Changing it to `net8.0` also works.
+- Always run `dotnet build` and `dotnet test` after changes, and fix all errors before reporting done.
+- User data lives in `%LOCALAPPDATA%\TidyFile`: `settings.json`, `rules.json`, `history.jsonl`, `tidyfile.log`.
+
+## Layout
+
+```
+src/TidyFile.Core/        Platform-neutral logic, unit tested. ImplicitUsings ON.
+  Rules/                  Rule, RuleEngine (Suggest / Explain / Validate), RulesProvider (auto-reload + Save), DefaultRules
+  Files/                  FileFilter (ignore temp/partial files), FileReadiness (wait until written), FileMover (never overwrite)
+  History/                HistoryStore (append-only JSONL), MoveService (move + undo, records history)
+  Paths/PathTokens.cs     {Downloads} {Desktop} {Documents} {Pictures} {Music} {Videos} {Home} + %ENV%; Expand / Shorten / Tokenize
+  Storage/                AppPaths, AppSettings, JsonFile (atomic save, .bad backup on corrupt JSON)
+src/TidyFile.App/         WPF app. ImplicitUsings OFF (see pitfalls).
+  App.xaml.cs             Startup wiring, single instance, SaveSettings, StartWatcher
+  Services/               WatcherService, PopupManager (one popup at a time + queue), TrayIcon (WinForms NotifyIcon), StartupRegistration
+  Views/                  SuggestionPopup, SettingsWindow
+  ViewModels/             ObservableObject, SettingsViewModel, RuleItem, FolderItem
+tests/TidyFile.Core.Tests/  xUnit 2.9.2
+```
+
+## Key decisions (don't change without a reason)
+
+- **C# / .NET / WPF**, chosen for speed, tray support and a single exe. The tray icon uses **WinForms `NotifyIcon`**, so the app project uses **no NuGet packages**. Keep it that way unless there's a strong reason.
+- **FileSystemWatcher**, not polling. Listen to both `Created` and `Renamed`: browsers download to `.crdownload` / `.part` and rename the file at the end.
+- **Files that already exist when a watcher starts are "known"** and never prompt. Office's save-via-temp-file therefore doesn't trigger popups.
+- **Files TidyFile writes itself** (moves, undo) are announced with `MoveService.ExpectIncoming` → `WatcherService.IgnoreNext`, and cancelled on failure.
+- **Ranking:** extension + name pattern = 0.9, name pattern only = 0.8, extension only = 0.6. Ties go to the rule higher in the list. Duplicate destinations are removed. The folder the file is already in is never suggested.
+- **Rule destinations must be fully qualified after expanding tokens.** Store `{Documents}\...` style paths where possible (`PathTokens.Tokenize`).
+- **Name patterns are case-insensitive .NET regex with a 200 ms timeout** (guards against ReDoS).
+- **History is an append-only JSONL file.** Phase 2 "learning" will read from it.
+- **The Settings window edits copies.** Nothing goes live until Save. Changing watched folders recreates the watcher without a restart.
+- **UI thread:** watcher events arrive on the thread pool and are marshalled with `Dispatcher.InvokeAsync`. PopupManager, the popups, the tray icon and RulesProvider's `ProblemsFound` must only be used on the UI thread.
+
+## Pitfalls we already hit
+
+- **`out _` inside a lambda with ONE `_` parameter.** In `(_, e) => dict.TryRemove(k, out _)`, the `_` is a real parameter (the sender), so `out _` binds to it and gives CS1503. Name the parameter (`sender`) instead.
+- **WPF + WinForms type clashes.** `Application`, `MessageBox`, `Button` and others exist in both. The App project has ImplicitUsings off. Never import `System.Windows` and `System.Windows.Forms` in the same file; fully qualify instead (see `HookUnhandledExceptions`).
+- **Errors in WinForms menu handlers** go to `System.Windows.Forms.Application.ThreadException`, not WPF's `DispatcherUnhandledException`. Both are hooked.
+- **Visual Studio can save its stale buffer over files changed outside it.** Tell the user to choose "Reload" if VS asks.
+- **"Start with Windows" stores the path of the exe that is currently running.** Ticking it while running from `bin\Debug` points Windows at the debug build.
+
+## Status
+
+- **Phase 1 — MVP:** done and committed. Tray app, watchers, rules, popup, history, undo.
+- **Phase 1.5 — Settings window:** written, not yet committed. Tabs for General, Watched folders and Rules (editor, ▲▼ reordering, live pattern errors, "Test a file name"). The tray menu now has Settings… (also opened by double-click), Pause, Recent moves, Open data folder and Exit.
+  - Review items 1–5 are fixed (build and tests pass). Next: commit as `Phase 1.5: Settings window`.
+
+### Review items (Phase 1.5)
+
+Fixed:
+
+1. **Corrupt `rules.json`.** `RulesProvider.LoadDocument(out warning)` returns the warning; the Settings window opens on the Rules tab with a red banner saying saving will replace the file.
+2. **Half-succeeding save.** `App.SaveSettings` writes both files, then applies the live settings and restarts the watcher; the registry step is last, in its own try/catch that only shows a tray warning.
+3. **Unsaved changes.** `SettingsViewModel.IsDirty`; `SettingsWindow.ConfirmClose()` asks "Discard them?" on ✕ / Esc / Cancel. Tray Exit asks first too, because a close during shutdown can't be cancelled.
+4. **Rule names.** `RuleEngine.Validate` requires a name (unnamed rules are skipped). `RuleEngine.FindDuplicateNames` feeds a "Save anyway?" warning in Settings; the engine itself doesn't report duplicates.
+5. **`TrayIcon.OpenWithShell`** replaced by `OpenDataFolder()` (no Notepad fallback).
+
+Later:
+
+6. **Tests for the App view models.** Add a `TidyFile.App.Tests` project (net10.0-windows) for SettingsViewModel and RuleItem: extension parsing (`"*.pdf, .DOCX"` → `pdf, docx`), duplicate-folder detection, moving rules, `Validate()`.
+7. **Debounce the rule tester.** It rebuilds the RuleEngine on every keystroke. Wait about 150 ms after typing stops if the rule list grows large.
+8. **History grows forever.** `HistoryStore.ReadAll()` reads the whole file every time the tray menu opens. Trim or compact old entries (Phase 2).
+
+## Roadmap
+
+- **Phase 2 — Smart:**
+  - Read the download source URL from the `Zone.Identifier` alternate data stream (`path + ":Zone.Identifier"`, `HostUrl=` / `ReferrerUrl=`) and use the domain as a signal.
+  - Learn from the user's choices in `history.jsonl` (extension, name tokens and domain → destination) and rank those higher.
+  - Add an "Always do this" button in the popup that creates a rule.
+  - Allow auto-move for trusted rules, showing a "Moved to X — Undo" toast instead of the popup.
+  - Group bursts of files into a single popup.
+  - Move files off the UI thread (cross-drive moves copy the whole file).
+- **Phase 3 — Cleanup:** scan the existing clutter in watched folders and offer batch suggestions; detect duplicates by hash.
+- **Phase 4 — AI (optional):** AI suggestions for files no rule matches. Send only metadata (name, extension, size, domain), never file contents, and add a privacy switch in Settings.
+
+## Working style for this repo
+
+- Keep changes small, and keep Core free of UI so it can be tested.
+- Add or adjust xUnit tests for Core changes.
+- Update `README.md` (user-facing) and this file (decisions and status) when features land.
+- The owner likes concise explanations and checks the staged files before committing. Don't commit or push unless asked.

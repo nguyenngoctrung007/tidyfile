@@ -46,9 +46,26 @@ public static class PathTokens
     /// </summary>
     public static string Shorten(string fullPath)
     {
+        var (token, rest) = SplitToken(fullPath);
+        return token is null ? fullPath : token + rest;
+    }
+
+    /// <summary>
+    /// Like <see cref="Shorten"/> but keeps the braces, so the result can be stored in settings and rules
+    /// and still works if the user's profile folder moves: <c>{Documents}\Finance</c>.
+    /// </summary>
+    public static string Tokenize(string fullPath)
+    {
+        var (token, rest) = SplitToken(fullPath);
+        return token is null ? fullPath : "{" + token + "}" + rest;
+    }
+
+    // Not "Rest": that tuple element name is reserved (CS8126).
+    private static (string? Token, string Remainder) SplitToken(string fullPath)
+    {
         if (string.IsNullOrWhiteSpace(fullPath))
         {
-            return fullPath;
+            return (null, fullPath);
         }
 
         foreach (var token in DisplayOrder)
@@ -62,15 +79,15 @@ public static class PathTokens
             root = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             if (fullPath.Equals(root, StringComparison.OrdinalIgnoreCase))
             {
-                return token;
+                return (token, "");
             }
 
             if (fullPath.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             {
-                return token + fullPath[root.Length..];
+                return (token, fullPath[root.Length..]);
             }
         }
 
-        return fullPath;
+        return (null, fullPath);
     }
 }

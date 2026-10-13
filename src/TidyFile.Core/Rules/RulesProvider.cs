@@ -61,4 +61,27 @@ public sealed class RulesProvider
             return _engine;
         }
     }
+
+    /// <summary>
+    /// Reads rules.json for editing (creates it with the defaults if missing).
+    /// <paramref name="warning"/> is set when the file could not be read and the defaults were returned instead,
+    /// so the caller can tell the user that saving will replace their file.
+    /// </summary>
+    public RulesDocument LoadDocument(out string? warning)
+    {
+        lock (_gate)
+        {
+            return JsonFile.LoadOrCreate(_path, DefaultRules.Create, out warning);
+        }
+    }
+
+    /// <summary>Writes rules.json; the next <see cref="GetEngine"/> call uses the new rules.</summary>
+    public void Save(RulesDocument document)
+    {
+        lock (_gate)
+        {
+            JsonFile.Save(_path, document);
+            _loadedWriteTimeUtc = DateTime.MinValue; // Force a reload even if the timestamp didn't move.
+        }
+    }
 }

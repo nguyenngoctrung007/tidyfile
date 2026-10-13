@@ -108,4 +108,64 @@ public class RuleEngineTests
         Assert.Empty(engine.Problems);
         Assert.Equal(DefaultRules.Create().Rules.Count, engine.RuleCount);
     }
+
+    [Fact]
+    public void Validate_explains_what_is_wrong()
+    {
+        Assert.Null(RuleEngine.Validate(new Rule { Name = "Ok", Extensions = { "pdf" }, Destination = Docs }));
+        Assert.Contains("destination", RuleEngine.Validate(new Rule { Extensions = { "pdf" } }));
+        Assert.Contains("pattern", RuleEngine.Validate(new Rule { NamePattern = "([", Destination = Docs }));
+        Assert.Contains("extension", RuleEngine.Validate(new Rule { Extensions = { " " }, Destination = Docs }));
+        Assert.Contains("full path", RuleEngine.Validate(new Rule { Extensions = { "pdf" }, Destination = "Finance" }));
+        Assert.Contains("name", RuleEngine.Validate(new Rule { Name = "  ", Extensions = { "pdf" }, Destination = Docs }));
+    }
+
+    [Fact]
+    public void Rules_without_a_name_are_skipped()
+    {
+        var engine = new RuleEngine(new[] { new Rule { Extensions = { "pdf" }, Destination = Docs } });
+
+        Assert.Equal(0, engine.RuleCount);
+        Assert.Contains("name", Assert.Single(engine.Problems));
+    }
+
+    [Fact]
+    public void FindDuplicateNames_ignores_case_spaces_and_empty_names()
+    {
+        var rules = new[]
+        {
+            new Rule { Name = "Docs" },
+            new Rule { Name = " docs " },
+            new Rule { Name = "Images" },
+            new Rule { Name = "" },
+            new Rule { Name = " " },
+        };
+
+        Assert.Equal(new[] { "Docs" }, RuleEngine.FindDuplicateNames(rules));
+    }
+
+    [Fact]
+    public void ValidatePattern_accepts_empty_and_valid_patterns()
+    {
+        Assert.Null(RuleEngine.ValidatePattern(null));
+        Assert.Null(RuleEngine.ValidatePattern(""));
+        Assert.Null(RuleEngine.ValidatePattern("^invoice"));
+        Assert.NotNull(RuleEngine.ValidatePattern("(unclosed"));
+    }
+
+    [Fact]
+    public void Explain_lists_every_matching_rule_best_first()
+    {
+        var engine = new RuleEngine(new[]
+        {
+            new Rule { Name = "Docs", Extensions = { "pdf" }, Destination = Docs },
+            new Rule { Name = "Also docs", Extensions = { "pdf" }, Destination = Docs },
+            new Rule { Name = "Invoices", Extensions = { "pdf" }, NamePattern = "invoice", Destination = Finance },
+        });
+
+        var matches = engine.Explain("invoice-01.pdf");
+
+        Assert.Equal(new[] { "Invoices", "Docs", "Also docs" }, matches.Select(m => m.RuleName));
+        Assert.Empty(engine.Explain("photo.png"));
+    }
 }

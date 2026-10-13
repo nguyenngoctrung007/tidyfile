@@ -27,40 +27,90 @@ public sealed class RuleEngine
                 continue;
             }
 
-            if (string.IsNullOrWhiteSpace(rule.Destination))
+            var problem = Validate(rule);
+            if (problem is not null)
             {
-                _problems.Add($"Rule '{rule.Name}' has no destination and was skipped.");
+                _problems.Add($"Rule '{rule.Name}' was skipped: {problem}");
                 continue;
             }
 
-            Regex? regex = null;
-            if (!string.IsNullOrWhiteSpace(rule.NamePattern))
-            {
-                try
-                {
-                    regex = new Regex(rule.NamePattern,
-                        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout);
-                }
-                catch (ArgumentException ex)
-                {
-                    _problems.Add($"Rule '{rule.Name}' has an invalid name pattern and was skipped: {ex.Message}");
-                    continue;
-                }
-            }
-
+            var regex = string.IsNullOrWhiteSpace(rule.NamePattern) ? null : CreateRegex(rule.NamePattern);
             var extensions = new HashSet<string>(
                 rule.Extensions.Where(e => !string.IsNullOrWhiteSpace(e)).Select(NormalizeExtension),
                 StringComparer.OrdinalIgnoreCase);
 
-            if (extensions.Count == 0 && regex is null)
-            {
-                _problems.Add($"Rule '{rule.Name}' has neither extensions nor a name pattern and was skipped.");
-                continue;
-            }
-
             _rules.Add(new CompiledRule(rule, extensions, regex));
         }
     }
+
+    /// <summary>Returns why a rule cannot be used, or null if it is valid. Used by the settings screen too.</summary>
+    public static string? Validate(Rule rule)
+    {
+        if (string.IsNullOrWhiteSpace(rule.Destination))
+        {
+            return "it has no destination folder.";
+        }
+
+        var expanded = PathTokens.Expand(rule.Destination.Trim());
+        if (!Path.IsPathFullyQualified(expanded))
+        {
+            return "its destination must be a full path such as D:\\Work or {Documents}\\Finance.";
+        }
+
+        var patternError = ValidatePattern(rule.NamePattern);
+        if (patternError is not null)
+        {
+            return "its name pattern is invalid: " + patternError;
+        }
+
+        var hasExtensions = rule.Extensions.Any(e => !string.IsNullOrWhiteSpace(e));
+        if (!hasExtensions && string.IsNullOrWhiteSpace(rule.NamePattern))
+        {
+            return "it needs at least one extension or a name pattern.";
+        }
+
+        if (string.IsNullOrWhiteSpace(rule.Name))
+        {
+            return "it has no name.";
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Names used by more than one rule (ignoring case and surrounding spaces), in first-seen order.
+    /// Not fatal, but the popup shows "Rule: &lt;name&gt;", so duplicates are confusing.
+    /// </summary>
+    public static IReadOnlyList<string> FindDuplicateNames(IEnumerable<Rule> rules) =>
+        rules
+            .Select(r => r.Name.Trim())
+            .Where(n => n.Length > 0)
+            .GroupBy(n => n, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToList();
+
+    /// <summary>Returns the regex error message, or null if the pattern is empty or valid.</summary>
+    public static string? ValidatePattern(string? pattern)
+    {
+        if (string.IsNullOrWhiteSpace(pattern))
+        {
+            return null;
+        }
+
+        try
+        {
+            CreateRegex(pattern);
+            return null;
+        }
+        catch (ArgumentException ex)
+        {
+            return ex.Message;
+        }
+    }
+
+    private static Regex CreateRegex(string pattern) =>
+        new(pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout);
 
     /// <summary>Problems found while loading rules (invalid regex, missing destination, ...).</summary>
     public IReadOnlyList<string> Problems => _problems;
@@ -104,6 +154,33 @@ public sealed class RuleEngine
             .Select(c => c.Suggestion)
             .DistinctBy(s => s.Destination, StringComparer.OrdinalIgnoreCase)
             .Take(max)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Every rule that matches <paramref name="fileName"/>, best first, without removing duplicates.
+    /// Used by the "Test a file name" box in Settings.
+    /// </summary>
+    public IReadOnlyList<Suggestion> Explain(string fileName)
+    {
+        fileName = Path.GetFileName(fileName);
+        var extension = NormalizeExtension(Path.GetExtension(fileName));
+
+        var matches = new List<(Suggestion Suggestion, int Order)>();
+        for (var i = 0; i < _rules.Count; i++)
+        {
+            var score = _rules[i].Score(fileName, extension);
+            if (score > 0)
+            {
+                var rule = _rules[i].Rule;
+                matches.Add((new Suggestion(PathTokens.Expand(rule.Destination), $"Rule: {rule.Name}", score, rule.Name), i));
+            }
+        }
+
+        return matches
+            .OrderByDescending(m => m.Suggestion.Confidence)
+            .ThenBy(m => m.Order)
+            .Select(m => m.Suggestion)
             .ToList();
     }
 

@@ -8,13 +8,21 @@ When a new file arrives, a small card appears in the bottom-right corner. It sug
 
 **Phase 1 (MVP)** is done:
 
-- [x] Tray icon with Pause, Recent moves (undo), Edit rules, Edit settings, Start with Windows, Exit
+- [x] Tray icon with Settings, Pause, Recent moves (undo), Exit
 - [x] Watches Downloads and Desktop with change notifications from Windows, so it uses about 0% CPU while idle
 - [x] Waits for downloads to finish and ignores partial and temp files (`.crdownload`, `.part`, `~$…`, `.tmp`, shortcuts)
 - [x] Rules by file extension and file name pattern, ranked by how specific they are
 - [x] Popup with Move, Browse… and Skip; it never steals focus and pauses while your mouse is over it
 - [x] Safe moves: never overwrites (uses `name (1).ext`), history log, undo
 - [x] Rules reload automatically when you save `rules.json`
+
+**Phase 1.5** is done:
+
+- [x] Settings window (tray → **Settings…**, or double-click the tray icon)
+  - **General:** start with Windows, popup duration, number of suggestions
+  - **Watched folders:** add or remove folders; changes apply without a restart
+  - **Rules:** add, edit, enable or disable, delete and reorder rules, with a live check of name patterns
+  - **Test a file name:** see which rules would match before you save
 
 ## Requirements
 
@@ -41,11 +49,11 @@ dotnet publish src/TidyFile.App -c Release -r win-x64 --self-contained false -p:
 
 ## Configuration
 
-Everything lives in `%LOCALAPPDATA%\TidyFile`. The tray menu has **Open TidyFile data folder**.
+Use the **Settings** window for everyday changes. Underneath, everything lives in `%LOCALAPPDATA%\TidyFile` (tray menu → **Open TidyFile data folder**), and you can still edit the files by hand.
 
 | File | What it is |
 |---|---|
-| `settings.json` | Folders to watch, popup duration, number of suggestions. Restart the app after changing it. |
+| `settings.json` | Folders to watch, popup duration, number of suggestions. If you edit it by hand, restart the app. |
 | `rules.json` | Your rules. Changes apply on the next file, no restart needed. |
 | `history.jsonl` | One line per move or undo. |
 | `tidyfile.log` | Diagnostics. |
