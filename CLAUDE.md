@@ -61,8 +61,7 @@ tests/TidyFile.Core.Tests/  xUnit 2.9.2
 ## Status
 
 - **Phase 1 — MVP:** done and committed. Tray app, watchers, rules, popup, history, undo.
-- **Phase 1.5 — Settings window:** written, not yet committed. Tabs for General, Watched folders and Rules (editor, ▲▼ reordering, live pattern errors, "Test a file name"). The tray menu now has Settings… (also opened by double-click), Pause, Recent moves, Open data folder and Exit.
-  - Review items 1–5 are fixed (build and tests pass). Next: commit as `Phase 1.5: Settings window`.
+- **Phase 1.5 — Settings window:** done and committed. Tabs for General, Watched folders and Rules (editor, ▲▼ reordering, live pattern errors, "Test a file name"). The tray menu now has Settings… (also opened by double-click), Pause, Recent moves, Open data folder and Exit.
 
 ### Review items (Phase 1.5)
 
