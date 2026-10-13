@@ -28,6 +28,16 @@ public class MiscTests
     }
 
     [Fact]
+    public void Downloads_token_is_a_full_path_and_round_trips()
+    {
+        var downloads = PathTokens.Expand("{Downloads}");
+
+        Assert.True(Path.IsPathFullyQualified(downloads));
+        Assert.Equal("{Downloads}", PathTokens.Tokenize(downloads));
+        Assert.Equal(@"{Downloads}\Setup.exe", PathTokens.Tokenize(Path.Combine(downloads, "Setup.exe")));
+    }
+
+    [Fact]
     public void Unknown_tokens_are_left_alone()
     {
         Assert.Equal("{Nope}", PathTokens.Expand("{Nope}"));

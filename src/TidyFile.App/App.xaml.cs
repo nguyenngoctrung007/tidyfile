@@ -54,7 +54,18 @@ public partial class App : Application
         Log.Info("TidyFile starting.");
         HookUnhandledExceptions();
 
-        _settings = JsonFile.LoadOrCreate(_paths.SettingsFile, () => new AppSettings(), out var settingsWarning);
+        string? settingsWarning;
+        try
+        {
+            _settings = JsonFile.LoadOrCreate(_paths.SettingsFile, () => new AppSettings(), out settingsWarning);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // E.g. locked by another program. Run with the defaults rather than not starting at all.
+            Log.Error("Could not read settings.json; using defaults.", ex);
+            _settings = new AppSettings();
+            settingsWarning = $"settings.json could not be read ({ex.Message}); using defaults.";
+        }
 
         var history = new HistoryStore(_paths.HistoryFile);
         _mover = new MoveService(history);

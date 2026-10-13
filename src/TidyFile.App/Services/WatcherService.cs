@@ -91,7 +91,21 @@ public sealed class WatcherService : IDisposable
     }
 
     /// <summary>Tell the watcher that TidyFile itself is about to create <paramref name="path"/>.</summary>
-    public void IgnoreNext(string path) => _ignoreUntil[path] = DateTime.UtcNow + IgnoreWindow;
+    public void IgnoreNext(string path)
+    {
+        var now = DateTime.UtcNow;
+
+        // Moves into folders we don't watch never raise an event, so their entries would stay forever.
+        foreach (var (key, until) in _ignoreUntil)
+        {
+            if (until <= now)
+            {
+                _ignoreUntil.TryRemove(key, out _);
+            }
+        }
+
+        _ignoreUntil[path] = now + IgnoreWindow;
+    }
 
     /// <summary>Undo <see cref="IgnoreNext"/> when the move did not happen after all.</summary>
     public void CancelIgnore(string path) => _ignoreUntil.TryRemove(path, out _);

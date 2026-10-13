@@ -20,8 +20,8 @@ public static class PathTokens
         ["Pictures"] = () => Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
         ["Music"] = () => Environment.GetFolderPath(Environment.SpecialFolder.MyMusic),
         ["Videos"] = () => Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),
-        // .NET has no SpecialFolder for Downloads; the default location is good enough for the MVP.
-        ["Downloads"] = () => Path.Combine(Home, "Downloads"),
+        // .NET has no SpecialFolder for Downloads, so ask Windows (the user may have moved it).
+        ["Downloads"] = () => KnownFolders.Downloads,
     };
 
     /// <summary>Token names in the order used when shortening paths for display.</summary>

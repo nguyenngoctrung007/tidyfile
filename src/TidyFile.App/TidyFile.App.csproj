@@ -15,6 +15,9 @@
     <RootNamespace>TidyFile.App</RootNamespace>
     <ApplicationIcon>Assets\tidyfile.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- WFO0003 asks WinForms apps to set DPI awareness in code. This is a WPF app (WinForms is only the
+         tray icon), and WPF reads DPI awareness from app.manifest, so the manifest setting stays. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
