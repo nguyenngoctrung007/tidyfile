@@ -49,6 +49,9 @@ public sealed class PopupManager
         ShowNext();
     }
 
+    /// <summary>Raised with a rule name when the user clicks the "rule added" notification.</summary>
+    public event Action<string>? EditRuleRequested;
+
     /// <summary>Closes the current popup and forgets anything waiting (used when pausing).</summary>
     public void Clear()
     {
@@ -89,7 +92,7 @@ public sealed class PopupManager
             }
 
             var popup = new SuggestionPopup(path, suggestions, TimeSpan.FromSeconds(_settings.PopupSeconds), _queue.Count, source);
-            popup.MoveRequested += (destination, ruleName) => MoveFile(path, destination, ruleName, source?.DisplayDomain);
+            popup.MoveRequested += (destination, ruleName, always) => MoveFile(path, destination, ruleName, source, always);
             popup.Closed += (_, _) =>
             {
                 _current = null;
@@ -104,18 +107,55 @@ public sealed class PopupManager
 
     // async void: an event handler whose errors are all caught below. The popup has already closed,
     // so the next one can show while a large cross-drive move is still copying.
-    private async void MoveFile(string path, string destinationFolder, string? ruleName, string? sourceDomain)
+    private async void MoveFile(string path, string destinationFolder, string? ruleName, DownloadSource? source, bool always)
     {
+        HistoryEntry entry;
         try
         {
-            var entry = await _mover.MoveAsync(path, destinationFolder, ruleName, sourceDomain); // Resumes on the UI thread.
+            entry = await _mover.MoveAsync(path, destinationFolder, ruleName, source?.DisplayDomain); // Resumes on the UI thread.
             Log.Info($"Moved '{entry.From}' -> '{entry.To}' (rule: {ruleName ?? "manual"}).");
-            _tray.ShowInfo("Moved", $"{Path.GetFileName(entry.To)} → {PathTokens.Shorten(destinationFolder)}");
         }
         catch (Exception ex)
         {
             Log.Error($"Could not move '{path}' to '{destinationFolder}'.", ex);
             _tray.ShowError("Could not move file", ex.Message);
+            return; // No rule for a move that didn't happen.
+        }
+
+        var moved = $"{Path.GetFileName(entry.To)} → {PathTokens.Shorten(destinationFolder)}";
+        if (!always)
+        {
+            _tray.ShowInfo("Moved", moved);
+            return;
+        }
+
+        // One toast for both, so the second doesn't replace the first.
+        var rule = RuleFactory.FromExample(path, destinationFolder, source);
+        try
+        {
+            var result = rule is null ? AddRuleResult.AlreadyExists : _rules.AddToTop(rule);
+            switch (result)
+            {
+                case AddRuleResult.Added:
+                    var name = rule!.Name; // Final name (AddToTop may have added " (2)").
+                    Log.Info($"Added rule '{name}' -> '{rule.Destination}'.");
+                    _tray.ShowInfo("Moved, and rule added",
+                        $"{moved}{Environment.NewLine}New rule \"{name}\". Click to edit it in Settings.",
+                        () => EditRuleRequested?.Invoke(name));
+                    break;
+                case AddRuleResult.AlreadyExists:
+                    _tray.ShowInfo("Moved", $"{moved}{Environment.NewLine}A rule for this already exists.");
+                    break;
+                case AddRuleResult.FileUnreadable:
+                    _tray.ShowError("Moved, but no rule added",
+                        "rules.json couldn't be read, so it was left alone. Fix it in Settings first.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Could not add the \"always do this\" rule.", ex);
+            _tray.ShowError("Moved, but no rule added", ex.Message);
         }
     }
 }

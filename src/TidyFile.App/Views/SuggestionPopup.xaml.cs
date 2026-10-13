@@ -51,6 +51,12 @@ public partial class SuggestionPopup : Window
         UpdateWaitingCount(waitingCount);
         BuildSuggestionButtons(suggestions);
 
+        if (RuleFactory.Describe(filePath, source) is { } description)
+        {
+            AlwaysCheckBox.Content = $"Always do this for {description}";
+            AlwaysCheckBox.Visibility = Visibility.Visible;
+        }
+
         // Start near the corner so there is no visible jump before the exact position is known.
         WindowStartupLocation = WindowStartupLocation.Manual;
         var workArea = SystemParameters.WorkArea;
@@ -69,8 +75,10 @@ public partial class SuggestionPopup : Window
         Closed += (_, _) => _timer.Stop();
     }
 
-    /// <summary>Raised with (destination folder, rule name or null) when the user picks a destination.</summary>
-    public event Action<string, string?>? MoveRequested;
+    /// <summary>
+    /// Raised with (destination folder, rule name or null, "always do this" ticked) when the user picks a destination.
+    /// </summary>
+    public event Action<string, string?, bool>? MoveRequested;
 
     public string FilePath => _filePath;
 
@@ -121,7 +129,7 @@ public partial class SuggestionPopup : Window
 
     private void Choose(string destinationFolder, string? ruleName)
     {
-        MoveRequested?.Invoke(destinationFolder, ruleName);
+        MoveRequested?.Invoke(destinationFolder, ruleName, AlwaysCheckBox.IsChecked == true);
         Close();
     }
 

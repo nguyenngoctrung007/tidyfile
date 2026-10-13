@@ -2,6 +2,13 @@ using TidyFile.Core.Storage;
 
 namespace TidyFile.Core.Rules;
 
+public enum AddRuleResult
+{
+    Added,
+    AlreadyExists,
+    FileUnreadable,
+}
+
 /// <summary>
 /// Loads rules.json and reloads it automatically when the file changes on disk,
 /// so edits take effect without restarting the app.
@@ -72,6 +79,30 @@ public sealed class RulesProvider
         lock (_gate)
         {
             return JsonFile.LoadOrCreate(_path, DefaultRules.Create, out warning);
+        }
+    }
+
+    /// <summary>
+    /// Adds <paramref name="rule"/> at the top of rules.json (see <see cref="RuleFactory.AddToTop"/>).
+    /// Refuses to touch a file it couldn't read, so a damaged rules.json is never replaced by defaults behind the user's back.
+    /// </summary>
+    public AddRuleResult AddToTop(Rule rule)
+    {
+        lock (_gate)
+        {
+            var document = JsonFile.LoadOrCreate(_path, DefaultRules.Create, out var warning);
+            if (warning is not null)
+            {
+                return AddRuleResult.FileUnreadable;
+            }
+
+            if (!RuleFactory.AddToTop(document, rule))
+            {
+                return AddRuleResult.AlreadyExists;
+            }
+
+            Save(document);
+            return AddRuleResult.Added;
         }
     }
 

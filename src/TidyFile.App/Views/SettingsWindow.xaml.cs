@@ -38,6 +38,23 @@ public partial class SettingsWindow : Window
         }
     }
 
+    public bool HasUnsavedChanges => _viewModel.IsDirty;
+
+    /// <summary>Switches to the Rules tab and selects the rule called <paramref name="ruleName"/>. False if not listed.</summary>
+    public bool ShowRule(string ruleName)
+    {
+        var rule = _viewModel.Rules.FirstOrDefault(r => r.Name.Trim().Equals(ruleName, StringComparison.OrdinalIgnoreCase));
+        if (rule is null)
+        {
+            return false;
+        }
+
+        Tabs.SelectedItem = RulesTab;
+        _viewModel.SelectedRule = rule;
+        RulesList.ScrollIntoView(rule);
+        return true;
+    }
+
     /// <summary>
     /// Asks "Discard changes?" if there are unsaved edits. Returns true if the window may close.
     /// Used by the tray's Exit too, because closing during app shutdown can't be cancelled.

@@ -21,6 +21,7 @@ public sealed class TrayIcon : IDisposable
     private readonly ToolStripMenuItem _recentItem;
     private readonly HistoryStore _history;
     private readonly AppPaths _paths;
+    private Action? _balloonClick;
 
     public TrayIcon(HistoryStore history, AppPaths paths)
     {
@@ -59,6 +60,14 @@ public sealed class TrayIcon : IDisposable
             Visible = true,
         };
         _notifyIcon.DoubleClick += (_, _) => SettingsRequested?.Invoke();
+        _notifyIcon.BalloonTipClicked += (_, _) =>
+        {
+            var click = _balloonClick;
+            _balloonClick = null;
+            click?.Invoke();
+        };
+        // Not cleared on BalloonTipClosed: when one notification replaces another, the old one's
+        // Closed event can arrive after the new action was set and would wipe it.
     }
 
     public event Action<bool>? PauseChanged;
@@ -69,12 +78,16 @@ public sealed class TrayIcon : IDisposable
 
     public event Action? SettingsRequested;
 
-    public void ShowInfo(string title, string text) => ShowBalloon(title, text, ToolTipIcon.Info);
+    /// <param name="onClick">Run if the user clicks this notification (only the latest one is clickable).</param>
+    public void ShowInfo(string title, string text, Action? onClick = null) => ShowBalloon(title, text, ToolTipIcon.Info, onClick);
 
-    public void ShowError(string title, string text) => ShowBalloon(title, text, ToolTipIcon.Error);
+    public void ShowError(string title, string text) => ShowBalloon(title, text, ToolTipIcon.Error, null);
 
-    private void ShowBalloon(string title, string text, ToolTipIcon icon)
+    private void ShowBalloon(string title, string text, ToolTipIcon icon, Action? onClick)
     {
+        // A new notification replaces the old one, and so does its click action.
+        _balloonClick = onClick;
+
         // Windows shows these as normal toast notifications on Windows 10/11.
         _notifyIcon.ShowBalloonTip(4000, title, string.IsNullOrEmpty(text) ? " " : text, icon);
     }

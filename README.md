@@ -29,7 +29,7 @@ When a new file arrives, a small card appears in the bottom-right corner. It sug
 - [x] Large moves (e.g. to another drive) run in the background, so the popup and tray never freeze
 - [x] Shows which website a download came from ("from github.com"), and rules can match on it
 - [x] Learns from your choices: after you move 2 or more similar files to a folder, it suggests that folder too
-- [ ] "Always do this" button
+- [x] "Always do this": tick it in the popup, pick a folder, and TidyFile adds a rule for files like this one
 - [ ] Move without asking, for rules you trust (opt-in per rule)
 
 ## Requirements

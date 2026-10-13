@@ -86,7 +86,8 @@ public partial class App : Application
 
         _tray.PauseChanged += OnPauseChanged;
         _tray.UndoRequested += OnUndoRequested;
-        _tray.SettingsRequested += OpenSettings;
+        _tray.SettingsRequested += () => OpenSettings();
+        _popups.EditRuleRequested += OpenSettings;
         _tray.ExitRequested += OnExitRequested;
 
         _rules.GetEngine(); // Creates rules.json on first run and reports problems early.
@@ -153,8 +154,27 @@ public partial class App : Application
         return true;
     }
 
-    private void OpenSettings()
+    /// <param name="ruleName">Rule to select on the Rules tab (e.g. one just added by "Always do this").</param>
+    private void OpenSettings(string? ruleName = null)
     {
+        if (_settingsWindow is not null && ruleName is not null && !_settingsWindow.ShowRule(ruleName))
+        {
+            // The open window was loaded before the rule was added. Reload it if that loses nothing.
+            if (!_settingsWindow.HasUnsavedChanges)
+            {
+                _settingsWindow.Close();
+            }
+            else
+            {
+                _settingsWindow.Activate();
+                MessageBox.Show(_settingsWindow,
+                    $"The rule \"{ruleName}\" was added, but this window was opened before that and has unsaved changes. " +
+                    "Saving them will remove the new rule. Cancel, then open Settings again to see it.",
+                    "TidyFile", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+        }
+
         if (_settingsWindow is not null)
         {
             if (_settingsWindow.WindowState == WindowState.Minimized)
@@ -183,6 +203,11 @@ public partial class App : Application
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         _settingsWindow.Show();
         _settingsWindow.Activate();
+
+        if (ruleName is not null)
+        {
+            _settingsWindow.ShowRule(ruleName);
+        }
     }
 
     /// <summary>Applies and saves the Settings window's edits. Returns an error message, or null.</summary>

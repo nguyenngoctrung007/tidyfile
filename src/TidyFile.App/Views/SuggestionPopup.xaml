@@ -66,6 +66,15 @@
                  Visibility="Collapsed"
                  Text="Nothing to suggest for this file yet. Use Browse… to pick a folder." />
 
+      <!-- Hidden when there is nothing to build a rule from (no extension, no website). -->
+      <CheckBox x:Name="AlwaysCheckBox"
+                Margin="0,2,0,4"
+                FontSize="11"
+                Foreground="{StaticResource TextMuted}"
+                Cursor="Hand"
+                Visibility="Collapsed"
+                ToolTip="Tick, then pick a folder: TidyFile adds a rule so files like this get that folder first next time." />
+
       <!-- Footer -->
       <DockPanel Margin="0,4,0,0" LastChildFill="False">
         <TextBlock x:Name="QueueText"
