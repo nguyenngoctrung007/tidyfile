@@ -24,6 +24,14 @@ When a new file arrives, a small card appears in the bottom-right corner. It sug
   - **Rules:** add, edit, enable or disable, delete and reorder rules, with a live check of name patterns
   - **Test a file name:** see which rules would match before you save
 
+**Phase 2** is in progress:
+
+- [x] Large moves (e.g. to another drive) run in the background, so the popup and tray never freeze
+- [x] Shows which website a download came from ("from github.com"), and rules can match on it
+- [ ] Learn from your choices
+- [ ] "Always do this" button
+- [ ] Move without asking, for rules you trust (opt-in per rule)
+
 ## Requirements
 
 - Windows 10 or 11
@@ -60,7 +68,7 @@ Use the **Settings** window for everyday changes. Underneath, everything lives i
 
 ### Writing rules
 
-Rules are checked against each new file. A rule that matches both the extension and the name pattern ranks higher than one that only matches the extension.
+Rules are checked against each new file. A file must match every condition a rule sets. The more specific the rule, the higher it ranks: extension + name pattern beats name pattern alone, which beats extension alone, and a website makes any rule a little more specific.
 
 ```jsonc
 {
@@ -76,10 +84,18 @@ Rules are checked against each new file. A rule that matches both the extension 
       "name": "Project X",
       "namePattern": "^projx[-_]",             // no extensions = any file type
       "destination": "D:\\Work\\ProjectX"
+    },
+    {
+      "name": "GitHub releases",
+      "extensions": [ "zip", "msi" ],
+      "sources": [ "github.com" ],             // the website it was downloaded from; sub-sites match too
+      "destination": "{Downloads}\\GitHub"
     }
   ]
 }
 ```
+
+The website comes from a note browsers attach to downloaded files. It is read on your PC and never sent anywhere. Not every browser or drive keeps it (FAT/exFAT drives and some private modes don't), and a rule with `sources` never matches a file whose website isn't known.
 
 Folder tokens you can use: `{Home}`, `{Desktop}`, `{Documents}`, `{Downloads}`, `{Pictures}`, `{Music}`, `{Videos}`. Environment variables such as `%OneDrive%` also work.
 

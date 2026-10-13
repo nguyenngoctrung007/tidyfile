@@ -218,6 +218,10 @@
                 <TextBlock Style="{StaticResource Hint}" Text="A regular expression, not case-sensitive. Use | for &quot;or&quot;, e.g. invoice|receipt. ^ means &quot;starts with&quot;." />
                 <TextBlock Style="{StaticResource ErrorText}" Text="{Binding PatternError}" />
 
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Downloaded from (optional)" />
+                <TextBox Text="{Binding SourcesText, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock Style="{StaticResource Hint}" Text="Websites separated by commas, e.g. github.com. Sub-sites match too. Files whose website isn't known won't match." />
+
                 <TextBlock Style="{StaticResource FieldLabel}" Text="Move to" />
                 <DockPanel>
                   <Button DockPanel.Dock="Right" Content="Browse…" Click="BrowseDestination_Click" Margin="6,0,0,0" />
@@ -234,6 +238,8 @@
               <TextBlock Style="{StaticResource FieldLabel}" Margin="0,0,0,4" Text="Test a file name" />
               <TextBox Text="{Binding TestFileName, UpdateSourceTrigger=PropertyChanged}" />
               <TextBlock Style="{StaticResource Hint}" Text="Type a name like Invoice-2026.pdf to see which rules match (uses your unsaved changes)." />
+              <TextBlock Style="{StaticResource FieldLabel}" Text="Downloaded from (optional)" />
+              <TextBox Text="{Binding TestSource, UpdateSourceTrigger=PropertyChanged}" />
               <TextBlock Margin="0,8,0,0" Text="{Binding TestResult}" TextWrapping="Wrap" FontFamily="Consolas" FontSize="12" />
             </StackPanel>
           </ScrollViewer>

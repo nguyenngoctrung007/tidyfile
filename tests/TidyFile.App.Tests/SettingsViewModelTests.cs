@@ -88,6 +88,19 @@ public class SettingsViewModelTests
         Assert.Contains("New rule", vm.TestResult);
     }
 
+    [Fact]
+    public void Tester_uses_the_website_when_given()
+    {
+        var vm = Create(new Rule { Name = "GitHub zips", Extensions = { "zip" }, Sources = { "github.com" }, Destination = Docs });
+
+        vm.TestFileName = "release.zip";
+        Assert.StartsWith("No rule matches", vm.TestResult);
+
+        vm.TestSource = "https://github.com/x/y";
+        Assert.Contains("✓ GitHub zips", vm.TestResult);
+        Assert.False(vm.IsDirty); // Testing is not an edit.
+    }
+
     // ----- Folders -----
 
     [Fact]

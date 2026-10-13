@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using TidyFile.Core;
+using TidyFile.Core.Files;
 using TidyFile.Core.Paths;
 using TidyFile.Core.Rules;
 
@@ -24,7 +25,9 @@ public partial class SuggestionPopup : Window
     private TimeSpan _remaining;
     private bool _dialogOpen;
 
-    public SuggestionPopup(string filePath, IReadOnlyList<Suggestion> suggestions, TimeSpan lifetime, int waitingCount)
+    /// <param name="source">Where the file was downloaded from, shown as "from github.com" when known.</param>
+    public SuggestionPopup(string filePath, IReadOnlyList<Suggestion> suggestions, TimeSpan lifetime, int waitingCount,
+        DownloadSource? source = null)
     {
         InitializeComponent();
 
@@ -37,6 +40,14 @@ public partial class SuggestionPopup : Window
         FileNameText.Text = Path.GetFileName(filePath);
         FileNameText.ToolTip = filePath;
         FileInfoText.Text = DescribeFile(filePath);
+        if (source?.DisplayDomain is { } domain)
+        {
+            FileInfoText.Text += $" · from {domain}";
+            if (source.HostDomain is { } host && host != domain)
+            {
+                FileInfoText.ToolTip = $"Page: {domain}{Environment.NewLine}File: {host}";
+            }
+        }
         UpdateWaitingCount(waitingCount);
         BuildSuggestionButtons(suggestions);
 

@@ -16,6 +16,24 @@ public class RuleItemTests
     }
 
     [Fact]
+    public void Sources_are_split_and_shown_in_the_summary()
+    {
+        var item = new RuleItem { Name = "GH", SourcesText = "github.com, nuget.org;GitHub.com", Destination = Docs };
+
+        Assert.Equal(new[] { "github.com", "nuget.org" }, item.ToRule().Sources);
+        Assert.Contains("from github.com, nuget.org", item.Summary);
+        Assert.False(item.HasProblem); // A website alone is enough.
+    }
+
+    [Fact]
+    public void A_non_website_source_is_a_problem()
+    {
+        var item = new RuleItem { Name = "Bad", SourcesText = "about:blank", Destination = Docs };
+
+        Assert.Contains("not a website", item.Problem);
+    }
+
+    [Fact]
     public void Round_trips_through_Rule()
     {
         var rule = new Rule
@@ -24,6 +42,7 @@ public class RuleItemTests
             Enabled = false,
             Extensions = { "pdf", "png" },
             NamePattern = "invoice|receipt",
+            Sources = { "github.com" },
             Destination = Docs,
         };
 
@@ -33,6 +52,7 @@ public class RuleItemTests
         Assert.Equal(rule.Enabled, back.Enabled);
         Assert.Equal(rule.Extensions, back.Extensions);
         Assert.Equal(rule.NamePattern, back.NamePattern);
+        Assert.Equal(rule.Sources, back.Sources);
         Assert.Equal(rule.Destination, back.Destination);
     }
 

@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using TidyFile.App.Views;
 using TidyFile.Core.Diagnostics;
+using TidyFile.Core.Files;
 using TidyFile.Core.History;
 using TidyFile.Core.Paths;
 using TidyFile.Core.Rules;
@@ -67,10 +68,13 @@ public sealed class PopupManager
                 continue; // Moved or deleted while waiting.
             }
 
+            // A tiny local read (the browser's "Zone.Identifier" note); cheap enough for the UI thread.
+            var source = DownloadSource.Read(path);
+
             IReadOnlyList<Suggestion> suggestions;
             try
             {
-                suggestions = _rules.GetEngine().Suggest(path, _settings.MaxSuggestions);
+                suggestions = _rules.GetEngine().Suggest(path, _settings.MaxSuggestions, source);
             }
             catch (Exception ex)
             {
@@ -78,7 +82,7 @@ public sealed class PopupManager
                 suggestions = Array.Empty<Suggestion>(); // Still show the popup so Browse… works.
             }
 
-            var popup = new SuggestionPopup(path, suggestions, TimeSpan.FromSeconds(_settings.PopupSeconds), _queue.Count);
+            var popup = new SuggestionPopup(path, suggestions, TimeSpan.FromSeconds(_settings.PopupSeconds), _queue.Count, source);
             popup.MoveRequested += (destination, ruleName) => MoveFile(path, destination, ruleName);
             popup.Closed += (_, _) =>
             {

@@ -11,6 +11,7 @@ public sealed class RuleItem : ObservableObject
     private bool _enabled = true;
     private string _extensionsText = "";
     private string _namePattern = "";
+    private string _sourcesText = "";
     private string _destination = "";
 
     public string Name
@@ -64,6 +65,19 @@ public sealed class RuleItem : ObservableObject
         }
     }
 
+    /// <summary>Comma or space separated websites, e.g. "github.com, nuget.org".</summary>
+    public string SourcesText
+    {
+        get => _sourcesText;
+        set
+        {
+            if (SetField(ref _sourcesText, value))
+            {
+                RaiseDerived();
+            }
+        }
+    }
+
     public string Destination
     {
         get => _destination;
@@ -89,6 +103,12 @@ public sealed class RuleItem : ObservableObject
                 what += $" · name ~ {NamePattern}";
             }
 
+            var sources = ParseSources();
+            if (sources.Length > 0)
+            {
+                what += " · from " + string.Join(", ", sources);
+            }
+
             return $"{what}  →  {(string.IsNullOrWhiteSpace(Destination) ? "?" : Destination)}";
         }
     }
@@ -107,6 +127,7 @@ public sealed class RuleItem : ObservableObject
         _enabled = rule.Enabled,
         _extensionsText = string.Join(", ", rule.Extensions),
         _namePattern = rule.NamePattern ?? "",
+        _sourcesText = string.Join(", ", rule.Sources),
         _destination = rule.Destination,
     };
 
@@ -116,8 +137,16 @@ public sealed class RuleItem : ObservableObject
         Enabled = Enabled,
         Extensions = ParseExtensions().ToList(),
         NamePattern = string.IsNullOrWhiteSpace(NamePattern) ? null : NamePattern.Trim(),
+        Sources = ParseSources().ToList(),
         Destination = Destination.Trim(),
     };
+
+    // Kept as typed (only trimmed): RuleEngine.Validate reports entries that aren't websites.
+    private string[] ParseSources() =>
+        SourcesText
+            .Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
     private string[] ParseExtensions() =>
         ExtensionsText

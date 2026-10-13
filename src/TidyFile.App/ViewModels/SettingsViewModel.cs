@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
+using TidyFile.Core.Files;
 using TidyFile.Core.Paths;
 using TidyFile.Core.Rules;
 using TidyFile.Core.Storage;
@@ -21,6 +22,7 @@ public sealed class SettingsViewModel : ObservableObject
     private FolderItem? _selectedFolder;
     private RuleItem? _selectedRule;
     private string _testFileName = "";
+    private string _testSource = "";
     private string _testResult = "";
 
     /// <param name="rulesWarning">Set when rules.json could not be read and <paramref name="rules"/> are the defaults.</param>
@@ -201,6 +203,19 @@ public sealed class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>Optional website for the tester, e.g. "github.com" (rules with websites only match when set).</summary>
+    public string TestSource
+    {
+        get => _testSource;
+        set
+        {
+            if (SetField(ref _testSource, value))
+            {
+                UpdateTestResult();
+            }
+        }
+    }
+
     public string TestResult
     {
         get => _testResult;
@@ -216,8 +231,11 @@ public sealed class SettingsViewModel : ObservableObject
             return;
         }
 
+        var domain = DownloadSource.DomainOf(TestSource);
+        var source = domain is null ? null : new DownloadSource(null, domain);
+
         var engine = new RuleEngine(Rules.Select(r => r.ToRule()));
-        var matches = engine.Explain(name);
+        var matches = engine.Explain(name, source);
         if (matches.Count == 0)
         {
             TestResult = "No rule matches. The popup would only offer Browse….";
@@ -226,7 +244,7 @@ public sealed class SettingsViewModel : ObservableObject
 
         // ✓ = shown in the popup. Use the same logic as the popup (it skips duplicate folders).
         var fakePath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "TidyFile rule test", System.IO.Path.GetFileName(name));
-        var shown = engine.Suggest(fakePath, MaxSuggestions).Select(s => s.RuleName).ToHashSet();
+        var shown = engine.Suggest(fakePath, MaxSuggestions, source).Select(s => s.RuleName).ToHashSet();
 
         var lines = matches
             .Take(8)

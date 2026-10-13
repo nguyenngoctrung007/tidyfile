@@ -1,3 +1,4 @@
+using TidyFile.Core.Files;
 using TidyFile.Core.Rules;
 
 namespace TidyFile.Core.Tests;
@@ -107,6 +108,89 @@ public class RuleEngineTests
 
         Assert.Empty(engine.Problems);
         Assert.Equal(DefaultRules.Create().Rules.Count, engine.RuleCount);
+    }
+
+    // ----- Download source -----
+
+    private static readonly DownloadSource FromGitHub = new("objects.githubusercontent.com", "github.com");
+
+    [Fact]
+    public void Source_rule_only_matches_files_from_that_website()
+    {
+        var engine = new RuleEngine(new[]
+        {
+            new Rule { Name = "GitHub zips", Extensions = { "zip" }, Sources = { "github.com" }, Destination = Docs },
+        });
+        var file = Path.Combine(Downloads, "release.zip");
+
+        Assert.Single(engine.Suggest(file, source: FromGitHub));
+        Assert.Empty(engine.Suggest(file)); // Unknown source.
+        Assert.Empty(engine.Suggest(file, source: new DownloadSource("example.org", null)));
+    }
+
+    [Fact]
+    public void Source_matches_either_domain_and_subdomains()
+    {
+        var engine = new RuleEngine(new[]
+        {
+            new Rule { Name = "CDN", Sources = { "githubusercontent.com" }, Destination = Docs },
+        });
+
+        Assert.Single(engine.Suggest(Path.Combine(Downloads, "a.bin"), source: FromGitHub));
+    }
+
+    [Fact]
+    public void Rule_sources_accept_full_urls()
+    {
+        var engine = new RuleEngine(new[]
+        {
+            new Rule { Name = "GitHub", Sources = { "https://www.github.com/" }, Destination = Docs },
+        });
+
+        Assert.Single(engine.Suggest(Path.Combine(Downloads, "a.bin"), source: FromGitHub));
+    }
+
+    [Fact]
+    public void Source_makes_a_rule_more_specific()
+    {
+        var engine = new RuleEngine(new[]
+        {
+            new Rule { Name = "Zips", Extensions = { "zip" }, Destination = Docs },
+            new Rule { Name = "GitHub zips", Extensions = { "zip" }, Sources = { "github.com" }, Destination = Finance },
+            new Rule { Name = "Releases", Extensions = { "zip" }, NamePattern = "release", Destination = Pictures },
+        });
+
+        var suggestions = engine.Suggest(Path.Combine(Downloads, "release.zip"), source: FromGitHub);
+
+        Assert.Equal(new[] { "Releases", "GitHub zips", "Zips" }, suggestions.Select(s => s.RuleName));
+        Assert.Equal(0.9, suggestions[0].Confidence, 3);
+        Assert.Equal(0.65, suggestions[1].Confidence, 3);
+        Assert.Equal(0.6, suggestions[2].Confidence, 3);
+    }
+
+    [Fact]
+    public void Source_only_and_name_plus_source_scores()
+    {
+        var engine = new RuleEngine(new[]
+        {
+            new Rule { Name = "From GitHub", Sources = { "github.com" }, Destination = Docs },
+            new Rule { Name = "Named", NamePattern = "^release", Sources = { "github.com" }, Destination = Finance },
+            new Rule { Name = "All", Extensions = { "zip" }, NamePattern = "^release", Sources = { "github.com" }, Destination = Pictures },
+        });
+
+        var matches = engine.Explain("release.zip", FromGitHub);
+
+        Assert.Equal(0.95, matches.Single(m => m.RuleName == "All").Confidence, 3);
+        Assert.Equal(0.85, matches.Single(m => m.RuleName == "Named").Confidence, 3);
+        Assert.Equal(0.6, matches.Single(m => m.RuleName == "From GitHub").Confidence, 3);
+    }
+
+    [Fact]
+    public void Validate_accepts_a_website_as_the_only_condition_and_rejects_non_websites()
+    {
+        Assert.Null(RuleEngine.Validate(new Rule { Name = "GH", Sources = { "github.com" }, Destination = Docs }));
+        Assert.Contains("not a website", RuleEngine.Validate(new Rule { Name = "Bad", Sources = { "about:blank" }, Destination = Docs }));
+        Assert.Contains("website", RuleEngine.Validate(new Rule { Name = "Empty", Sources = { " " }, Destination = Docs }));
     }
 
     [Fact]

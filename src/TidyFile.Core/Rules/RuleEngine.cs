@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using TidyFile.Core.Files;
 using TidyFile.Core.Paths;
 
 namespace TidyFile.Core.Rules;
@@ -9,9 +10,13 @@ namespace TidyFile.Core.Rules;
 /// </summary>
 public sealed class RuleEngine
 {
+    // Resulting scores: ext+name+source 0.95, ext+name 0.9, name+source 0.85, name 0.8,
+    // ext+source 0.65, ext 0.6, source only 0.6. Learned suggestions (Phase 2.3) stay at or below 0.85.
     private const double ScoreExtensionAndName = 0.9;
     private const double ScoreNameOnly = 0.8;
     private const double ScoreExtensionOnly = 0.6;
+    private const double ScoreSourceOnly = 0.55;
+    private const double SourceBonus = 0.05;
 
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(200);
 
@@ -38,8 +43,9 @@ public sealed class RuleEngine
             var extensions = new HashSet<string>(
                 rule.Extensions.Where(e => !string.IsNullOrWhiteSpace(e)).Select(NormalizeExtension),
                 StringComparer.OrdinalIgnoreCase);
+            var sources = rule.Sources.Select(DownloadSource.DomainOf).OfType<string>().Distinct().ToList();
 
-            _rules.Add(new CompiledRule(rule, extensions, regex));
+            _rules.Add(new CompiledRule(rule, extensions, regex, sources));
         }
     }
 
@@ -63,10 +69,17 @@ public sealed class RuleEngine
             return "its name pattern is invalid: " + patternError;
         }
 
-        var hasExtensions = rule.Extensions.Any(e => !string.IsNullOrWhiteSpace(e));
-        if (!hasExtensions && string.IsNullOrWhiteSpace(rule.NamePattern))
+        var badSource = rule.Sources.FirstOrDefault(s => !string.IsNullOrWhiteSpace(s) && DownloadSource.DomainOf(s) is null);
+        if (badSource is not null)
         {
-            return "it needs at least one extension or a name pattern.";
+            return $"\"{badSource.Trim()}\" is not a website such as github.com.";
+        }
+
+        var hasExtensions = rule.Extensions.Any(e => !string.IsNullOrWhiteSpace(e));
+        var hasSources = rule.Sources.Any(s => !string.IsNullOrWhiteSpace(s));
+        if (!hasExtensions && !hasSources && string.IsNullOrWhiteSpace(rule.NamePattern))
+        {
+            return "it needs at least one extension, a name pattern or a website.";
         }
 
         if (string.IsNullOrWhiteSpace(rule.Name))
@@ -118,7 +131,8 @@ public sealed class RuleEngine
     public int RuleCount => _rules.Count;
 
     /// <summary>Returns up to <paramref name="max"/> distinct destinations, best first.</summary>
-    public IReadOnlyList<Suggestion> Suggest(string filePath, int max = 3)
+    /// <param name="source">Where the file was downloaded from, if known. Rules with websites only match when it is.</param>
+    public IReadOnlyList<Suggestion> Suggest(string filePath, int max = 3, DownloadSource? source = null)
     {
         if (max <= 0)
         {
@@ -132,7 +146,7 @@ public sealed class RuleEngine
         var candidates = new List<(Suggestion Suggestion, int Order)>();
         for (var i = 0; i < _rules.Count; i++)
         {
-            var score = _rules[i].Score(fileName, extension);
+            var score = _rules[i].Score(fileName, extension, source);
             if (score <= 0)
             {
                 continue;
@@ -161,7 +175,7 @@ public sealed class RuleEngine
     /// Every rule that matches <paramref name="fileName"/>, best first, without removing duplicates.
     /// Used by the "Test a file name" box in Settings.
     /// </summary>
-    public IReadOnlyList<Suggestion> Explain(string fileName)
+    public IReadOnlyList<Suggestion> Explain(string fileName, DownloadSource? source = null)
     {
         fileName = Path.GetFileName(fileName);
         var extension = NormalizeExtension(Path.GetExtension(fileName));
@@ -169,7 +183,7 @@ public sealed class RuleEngine
         var matches = new List<(Suggestion Suggestion, int Order)>();
         for (var i = 0; i < _rules.Count; i++)
         {
-            var score = _rules[i].Score(fileName, extension);
+            var score = _rules[i].Score(fileName, extension, source);
             if (score > 0)
             {
                 var rule = _rules[i].Rule;
@@ -217,9 +231,9 @@ public sealed class RuleEngine
             : folder;
     }
 
-    private sealed record CompiledRule(Rule Rule, HashSet<string> Extensions, Regex? NameRegex)
+    private sealed record CompiledRule(Rule Rule, HashSet<string> Extensions, Regex? NameRegex, List<string> Sources)
     {
-        public double Score(string fileName, string extension)
+        public double Score(string fileName, string extension, DownloadSource? source)
         {
             var hasExtensions = Extensions.Count > 0;
             if (hasExtensions && !Extensions.Contains(extension))
@@ -227,6 +241,14 @@ public sealed class RuleEngine
                 return 0;
             }
 
+            var hasSources = Sources.Count > 0;
+            if (hasSources &&
+                (source is null || !source.Domains.Any(d => Sources.Any(s => DownloadSource.Matches(d, s)))))
+            {
+                return 0;
+            }
+
+            var bonus = hasSources ? SourceBonus : 0;
             if (NameRegex is not null)
             {
                 bool nameMatches;
@@ -244,10 +266,10 @@ public sealed class RuleEngine
                     return 0;
                 }
 
-                return hasExtensions ? ScoreExtensionAndName : ScoreNameOnly;
+                return (hasExtensions ? ScoreExtensionAndName : ScoreNameOnly) + bonus;
             }
 
-            return ScoreExtensionOnly;
+            return (hasExtensions ? ScoreExtensionOnly : ScoreSourceOnly) + bonus;
         }
     }
 }

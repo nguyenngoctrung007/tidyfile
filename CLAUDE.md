@@ -44,7 +44,8 @@ tests/TidyFile.App.Tests/   xUnit, net10.0-windows: SettingsViewModel, RuleItem 
 - **FileSystemWatcher**, not polling. Listen to both `Created` and `Renamed`: browsers download to `.crdownload` / `.part` and rename the file at the end.
 - **Files that already exist when a watcher starts are "known"** and never prompt. Office's save-via-temp-file therefore doesn't trigger popups.
 - **Files TidyFile writes itself** (moves, undo) are announced with `MoveService.ExpectIncoming` → `WatcherService.IgnoreNext`, and cancelled on failure.
-- **Ranking:** extension + name pattern = 0.9, name pattern only = 0.8, extension only = 0.6. Ties go to the rule higher in the list. Duplicate destinations are removed. The folder the file is already in is never suggested.
+- **Ranking:** extension + name pattern = 0.9, name pattern only = 0.8, extension only = 0.6, website only = 0.55; a website condition adds 0.05 (so ext + name + website = 0.95, name + website = 0.85). Every condition a rule sets must match. Ties go to the rule higher in the list.
+- **Website matching:** a rule's `sources` match the page domain (`ReferrerUrl`) or the file domain (`HostUrl`, often a CDN), including subdomains (`github.com` matches `objects.github.com`, not `notgithub.com`). Domains are normalized by `DownloadSource.DomainOf` (lower case, no `www.`, full URLs accepted). Duplicate destinations are removed. The folder the file is already in is never suggested.
 - **Rule destinations must be fully qualified after expanding tokens.** Store `{Documents}\...` style paths where possible (`PathTokens.Tokenize`).
 - **Name patterns are case-insensitive .NET regex with a 200 ms timeout** (guards against ReDoS).
 - **History is an append-only JSONL file.** Phase 2 "learning" will read from it.
@@ -88,7 +89,7 @@ Later:
 
 - **Phase 2 — Smart.** Agreed with the owner on 2026-10-13. One commit per step, in this order:
   1. ✅ **Moves off the UI thread.** `MoveService.MoveAsync` / `UndoAsync` run on the thread pool, one move at a time (a semaphore, so two moves can't pick the same free name). `OnExit` waits up to 1 minute for a running move.
-  2. **Download source.** Read the `Zone.Identifier` alternate data stream (`path + ":Zone.Identifier"`, `HostUrl=` / `ReferrerUrl=`). Show the domain in the popup ("from github.com"), and let rules match on it (`"sources": ["github.com"]`). The domain is a rule condition and a learning signal, **never a suggestion on its own** (browsers don't always write it). It never leaves the PC.
+  2. ✅ **Download source.** `Files/DownloadSource` reads the `Zone.Identifier` alternate data stream (`path + ":Zone.Identifier"`, `HostUrl=` / `ReferrerUrl=`). Show the domain in the popup ("from github.com"), and let rules match on it (`"sources": ["github.com"]`). The domain is a rule condition and a learning signal, **never a suggestion on its own** (browsers don't always write it). It never leaves the PC.
   3. **Learn from choices** in `history.jsonl` (extension, domain, name tokens → destination). Needs **at least 2 consistent moves**; a learned suggestion always ranks **below an extension + name rule (max 0.85)**; undone moves count against it. Load history once and keep it in memory (fixes item 8).
   4. **"Always do this"** in the popup creates the rule **immediately**, with a toast linking to Settings. It doesn't open Settings.
   5. **Auto-move:** **off by default, opt-in per rule** in Settings, **only for user rules, never learned suggestions**. Shows a "Moved X to Y · Undo" toast instead of the popup. Still logged and undoable.
