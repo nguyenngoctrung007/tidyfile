@@ -18,4 +18,7 @@ public sealed class AppPaths
     public string HistoryFile => Path.Combine(Root, "history.jsonl");
 
     public string LogFile => Path.Combine(Root, "tidyfile.log");
+
+    /// <summary>What the last "Create workspace" did, for Undo.</summary>
+    public string WorkspaceSetupFile => Path.Combine(Root, "workspace-setup.json");
 }

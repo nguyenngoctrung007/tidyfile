@@ -68,14 +68,21 @@ public static class RuleFactory
             return false;
         }
 
-        var baseName = rule.Name;
-        for (var i = 2; document.Rules.Any(r => r.Name.Trim().Equals(rule.Name, StringComparison.OrdinalIgnoreCase)); i++)
-        {
-            rule.Name = $"{baseName} ({i})";
-        }
-
+        rule.Name = UniqueName(document, rule.Name);
         document.Rules.Insert(0, rule);
         return true;
+    }
+
+    /// <summary><paramref name="name"/>, or "name (2)", "name (3)"… if a rule in <paramref name="document"/> already uses it.</summary>
+    public static string UniqueName(RulesDocument document, string name)
+    {
+        var candidate = name;
+        for (var i = 2; document.Rules.Any(r => r.Name.Trim().Equals(candidate, StringComparison.OrdinalIgnoreCase)); i++)
+        {
+            candidate = $"{name} ({i})";
+        }
+
+        return candidate;
     }
 
     private static bool SameConditions(Rule a, Rule b) =>
