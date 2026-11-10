@@ -32,6 +32,10 @@ When a new file arrives, a small card appears in the bottom-right corner. It sug
 - [x] "Always do this": tick it in the popup, pick a folder, and TidyFile adds a rule for files like this one
 - [x] Move without asking, for rules you trust: tick **Move without asking** on a rule in Settings (off by default). A notification lets you undo
 
+**Create workspace** (tray → **Create workspace…**):
+
+- [x] Sets up a standard developer folder structure with a README in one step, and can undo it
+
 ## Requirements
 
 - Windows 10 or 11
@@ -109,6 +113,21 @@ Besides your rules, TidyFile looks at where you moved files before (from `histor
 - A rule that matches both the file type and the name always ranks above a learned suggestion.
 
 Folder tokens you can use: `{Home}`, `{Desktop}`, `{Documents}`, `{Downloads}`, `{Pictures}`, `{Music}`, `{Videos}`. Environment variables such as `%OneDrive%` also work.
+
+## Create workspace
+
+Tray → **Create workspace…** sets up a clean developer workspace (default `D:\Workspace`, or `%USERPROFILE%\Workspace` without a D: drive):
+
+```
+Inbox\   Projects\Work\   Projects\Personal\   Sandbox\
+Resources\Books\   Resources\Courses\   Resources\Tools\   Resources\Assets\
+Archive\<year>\   README.md
+```
+
+- Only missing folders are created; nothing is moved, overwritten or deleted. The README explains each folder and how to use a different git email for work repos.
+- **Watch Inbox** (on by default): files you drop into `Inbox` get suggestions, which helps when you move over from an old setup bit by bit.
+- **Suggest into the workspace** (on by default): your Installers rule now points to `Resources\Tools`, and an Ebooks rule (`epub`, `mobi` → `Resources\Books`) is added at the bottom of your rules.
+- **Undo last setup** (same window) reverts all of this, but only what you haven't changed since: folders that now contain files are kept.
 
 ## Project layout
 

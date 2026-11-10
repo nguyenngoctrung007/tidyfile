@@ -30,11 +30,12 @@ src/TidyFile.Core/        Platform-neutral logic, unit tested. ImplicitUsings ON
   History/                HistoryStore (append-only JSONL), MoveService (move + undo, records history)
   Paths/PathTokens.cs     {Downloads} {Desktop} {Documents} {Pictures} {Music} {Videos} {Home} + %ENV%; Expand / Shorten / Tokenize
   Storage/                AppPaths, AppSettings, JsonFile (atomic save, .bad backup on corrupt JSON)
+  Workspace/              WorkspaceTemplate (data), WorkspacePlanner (preview, read-only), WorkspaceSetup (Apply / Undo), WorkspaceRecord
 src/TidyFile.App/         WPF app. ImplicitUsings OFF (see pitfalls).
   App.xaml.cs             Startup wiring, single instance, SaveSettings, StartWatcher
   Services/               WatcherService, PopupManager (one popup at a time + queue), TrayIcon (WinForms NotifyIcon), StartupRegistration
-  Views/                  SuggestionPopup, SettingsWindow
-  ViewModels/             ObservableObject, SettingsViewModel, RuleItem, FolderItem
+  Views/                  SuggestionPopup, SettingsWindow, WorkspaceWindow
+  ViewModels/             ObservableObject, SettingsViewModel, RuleItem, FolderItem, WorkspaceViewModel
 tests/TidyFile.Core.Tests/  xUnit 2.9.2
 tests/TidyFile.App.Tests/   xUnit, net10.0-windows: SettingsViewModel, RuleItem (no windows created)
 ```
@@ -96,7 +97,7 @@ Later:
   4. ✅ **"Always do this".** A checkbox in the popup ("Always do this for PDF files from bank.com"); picking any destination (suggestion or Browse…) with it ticked moves the file, then `RuleFactory.FromExample` builds a rule: the extension, plus the website when known, **never a name pattern** (one example is too little). `RulesProvider.AddToTop` inserts it **at the top** (wins ties with older rules), renames on a name clash, skips an identical enabled rule, and **refuses if rules.json can't be read**. One toast for both; clicking it opens Settings on that rule (`TrayIcon.ShowInfo(..., onClick)`). Known gap: if the Settings window is open with unsaved edits, saving it removes the new rule (the user is told).
   5. ✅ **Auto-move.** `Rule.AutoMove`, **off by default**, ticked per rule in Settings. `RuleEngine.AutoMoveChoice` looks only at the **best rule suggestion** (before merging with learned ones): learned suggestions never auto-move and never block a trusted rule. Decided in `PopupManager.Enqueue` on arrival (not behind an open popup). Toast "Moved automatically … Click to undo" (`PopupManager.UndoRequested` → `App.OnUndoRequested`). If the move fails, the file gets the normal popup instead (`_askAnyway`). Logged like any move.
   6. **Group bursts** into one popup: deferred, revisit after 1–5 are in use.
-- **Candidate — Starter layouts** (idea from the owner, 2026-10-13; not scheduled). Not a general "workspace init" tool: a template creates **folders and the rules that fill them** in one step (e.g. "Personal" → `D:\Personal\Finance`, `\Installers`, `\Photos` + matching rules), so TidyFile is useful from day one. In Settings: pick template + base folder, preview, confirm. Only creates missing folders, never moves or deletes; rules added like "Always do this" (skip identical, leave a broken rules.json alone). Templates as small JSON files. Worth it mainly if TidyFile is shared with others; for the owner alone, decide after a week of daily use.
+- ✅ **Create workspace** (2026-11-10; replaced the "Starter layouts" idea). Spec: `docs/superpowers/specs/2026-11-10-create-workspace-design.md`, plan: `docs/superpowers/plans/2026-11-10-create-workspace.md`. Tray → "Create workspace…" builds one built-in **developer** template (plain names, 2 levels: `Inbox`, `Projects\Work|Personal`, `Sandbox`, `Resources\Books|Courses|Tools|Assets`, `Archive\<year>`, `README.md`) in a base folder (default `D:\Workspace`). Two options, both on by default: **watch Inbox**, **suggest into the workspace** (Installers rule → `Resources\Tools`, found by content not name; Ebooks rule added **at the bottom**). `workspace-setup.json` records only what was actually created/changed; **Undo last setup** reverts only what is untouched and removes folders with a **non-recursive** delete (non-empty folders are kept). Core edits copies; App saves them. Blocked while the Settings window is open (its stale copy would overwrite the changes). An empty record (nothing missing) never replaces the previous one. Out of scope: more templates, template files, command line, moving existing files.
 - **Phase 3 — Cleanup:** scan the existing clutter in watched folders and offer batch suggestions; detect duplicates by hash.
 - **Phase 4 — AI (optional):** AI suggestions for files no rule matches. Send only metadata (name, extension, size, domain), never file contents, and add a privacy switch in Settings.
 
