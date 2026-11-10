@@ -41,8 +41,12 @@ public sealed class TrayIcon : IDisposable
         settingsItem.Font = new Font(settingsItem.Font, FontStyle.Bold); // Default action (double-click).
         settingsItem.Click += (_, _) => SettingsRequested?.Invoke();
 
+        var workspaceItem = new ToolStripMenuItem("Create workspace…");
+        workspaceItem.Click += (_, _) => WorkspaceRequested?.Invoke();
+
         _menu = new ContextMenuStrip();
         _menu.Items.Add(settingsItem);
+        _menu.Items.Add(workspaceItem);
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add(_pauseItem);
         _menu.Items.Add(_recentItem);
@@ -77,6 +81,8 @@ public sealed class TrayIcon : IDisposable
     public event Action? ExitRequested;
 
     public event Action? SettingsRequested;
+
+    public event Action? WorkspaceRequested;
 
     /// <param name="onClick">Run if the user clicks this notification (only the latest one is clickable).</param>
     public void ShowInfo(string title, string text, Action? onClick = null) => ShowBalloon(title, text, ToolTipIcon.Info, onClick);

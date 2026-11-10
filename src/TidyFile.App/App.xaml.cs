@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -12,6 +15,7 @@ using TidyFile.Core.History;
 using TidyFile.Core.Paths;
 using TidyFile.Core.Rules;
 using TidyFile.Core.Storage;
+using TidyFile.Core.Workspace;
 
 namespace TidyFile.App;
 
@@ -34,6 +38,7 @@ public partial class App : Application
 
     private WatcherService? _watcher;
     private SettingsWindow? _settingsWindow;
+    private WorkspaceWindow? _workspaceWindow;
     private bool _paused;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -87,6 +92,7 @@ public partial class App : Application
         _tray.PauseChanged += OnPauseChanged;
         _tray.UndoRequested += OnUndoRequested;
         _tray.SettingsRequested += () => OpenSettings();
+        _tray.WorkspaceRequested += OpenWorkspace;
         _popups.EditRuleRequested += OpenSettings;
         _popups.UndoRequested += OnUndoRequested;
         _tray.ExitRequested += OnExitRequested;
@@ -256,6 +262,222 @@ public partial class App : Application
         }
 
         return null;
+    }
+
+    private const string CloseSettingsFirst =
+        "Close the Settings window first, so its unsaved copy doesn't overwrite the workspace changes.";
+
+    private void OpenWorkspace()
+    {
+        // Settings edits copies of the rules and settings; saving it later would undo what the workspace changed.
+        if (_settingsWindow is not null)
+        {
+            _settingsWindow.Activate();
+            MessageBox.Show(_settingsWindow, CloseSettingsFirst, "TidyFile", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (_workspaceWindow is not null)
+        {
+            _workspaceWindow.Activate();
+            return;
+        }
+
+        var viewModel = new WorkspaceViewModel(
+            _settings, LoadRulesForEdit(), WorkspaceRecord.Load(_paths.WorkspaceSetupFile), DateTime.Now.Year);
+        _workspaceWindow = new WorkspaceWindow(viewModel, CreateWorkspace, UndoWorkspace);
+        _workspaceWindow.Closed += (_, _) => _workspaceWindow = null;
+        _workspaceWindow.Show();
+        _workspaceWindow.Activate();
+    }
+
+    /// <summary>Creates the workspace and saves what changed. Returns an error message, or null.</summary>
+    private string? CreateWorkspace(WorkspaceViewModel viewModel)
+    {
+        if (_settingsWindow is not null)
+        {
+            return CloseSettingsFirst;
+        }
+
+        // Work on copies; the live settings change only after settings.json is saved.
+        var settings = CopyOfSettings();
+        var rules = LoadRulesForEdit();
+        WorkspaceApplyResult result;
+        try
+        {
+            var plan = WorkspacePlanner.Plan(WorkspaceTemplate.Developer, viewModel.BaseFolder, settings, rules, DateTime.Now.Year);
+            result = WorkspaceSetup.Apply(plan, viewModel.Options, settings, rules, DateTimeOffset.Now,
+                beforeWriteFile: path => _watcher?.IgnoreNext(path)); // The base may be a watched folder.
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Creating the workspace failed.", ex);
+            return ex.Message;
+        }
+
+        var record = result.Record;
+        var notes = new List<string>(result.Notes);
+
+        if (result.SettingsChanged && !TrySaveSettings(settings, notes))
+        {
+            record.AddedWatchFolder = null; // Not applied, so nothing to undo.
+        }
+
+        if (result.RulesChanged && rules is not null && !TrySaveRules(rules, notes))
+        {
+            record.RedirectedRuleName = record.RedirectedFrom = record.RedirectedTo = null;
+            record.AddedRuleName = record.AddedRuleDestination = null;
+        }
+
+        // An empty record (nothing was missing) must not replace the previous setup's undo.
+        if (!record.IsEmpty)
+        {
+            try
+            {
+                record.Save(_paths.WorkspaceSetupFile);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Could not save the workspace undo record.", ex);
+                notes.Add($"Undo won't be available ({ex.Message}).");
+            }
+        }
+
+        Log.Info($"Workspace in '{record.BaseFolder}': {record.CreatedFolders.Count} folders created" +
+                 (result.Error is null ? "." : $", stopped: {result.Error}"));
+
+        if (result.Error is null)
+        {
+            var text = record.BaseFolder + Environment.NewLine + string.Join(" ", notes.Prepend("Click to open."));
+            _tray.ShowInfo(result.Title, text, () => OpenFolder(record.BaseFolder));
+        }
+        else
+        {
+            _tray.ShowError(result.Title, result.Error);
+        }
+
+        return result.Error is null
+            ? null
+            : $"Stopped part-way: {result.Error}{Environment.NewLine}{Environment.NewLine}" +
+              "What was created so far can be undone from this window.";
+    }
+
+    /// <summary>Undoes the last workspace setup and saves what changed. Returns an error message, or null.</summary>
+    private string? UndoWorkspace()
+    {
+        if (_settingsWindow is not null)
+        {
+            return CloseSettingsFirst;
+        }
+
+        var record = WorkspaceRecord.Load(_paths.WorkspaceSetupFile);
+        if (record is null)
+        {
+            return "Nothing to undo: the record of the last setup is missing.";
+        }
+
+        var settings = CopyOfSettings();
+        var rules = LoadRulesForEdit();
+        WorkspaceUndoResult result;
+        try
+        {
+            result = WorkspaceSetup.Undo(record, settings, rules);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Undoing the workspace setup failed.", ex);
+            return ex.Message;
+        }
+
+        var problems = new List<string>();
+        if (result.SettingsChanged)
+        {
+            TrySaveSettings(settings, problems);
+        }
+
+        if (result.RulesChanged && rules is not null)
+        {
+            TrySaveRules(rules, problems);
+        }
+
+        if (problems.Count > 0)
+        {
+            return string.Join(Environment.NewLine, problems); // Keep the record so Undo can be tried again.
+        }
+
+        WorkspaceRecord.Delete(_paths.WorkspaceSetupFile);
+        Log.Info($"Workspace setup in '{record.BaseFolder}' undone; kept: {string.Join(", ", result.Kept)}");
+        _tray.ShowInfo("Workspace setup undone",
+            result.Kept.Count == 0 ? "Everything it created was removed." : "Kept: " + string.Join(", ", result.Kept));
+        return null;
+    }
+
+    /// <summary>Saves settings.json and makes the running app match it. Adds a note and returns false on failure.</summary>
+    private bool TrySaveSettings(AppSettings settings, List<string> notes)
+    {
+        try
+        {
+            JsonFile.Save(_paths.SettingsFile, settings);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Could not save settings.json.", ex);
+            notes.Add($"Could not save settings.json ({ex.Message}).");
+            return false;
+        }
+
+        _settings.WatchFolders = settings.WatchFolders;
+        StartWatcher();
+        Log.Info("Watched folders changed: " + string.Join(", ", _settings.WatchFolders));
+        ReportMissingFolders();
+        return true;
+    }
+
+    private bool TrySaveRules(RulesDocument rules, List<string> notes)
+    {
+        try
+        {
+            _rules.Save(rules);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Could not save rules.json.", ex);
+            notes.Add($"Could not save rules.json ({ex.Message}).");
+            return false;
+        }
+    }
+
+    /// <summary>A deep copy, so edits don't reach the live settings until they are saved.</summary>
+    private AppSettings CopyOfSettings() =>
+        JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(_settings, JsonFile.Options), JsonFile.Options)!;
+
+    /// <summary>The rules for editing, or null if rules.json can't be read (so it is never overwritten with defaults).</summary>
+    private RulesDocument? LoadRulesForEdit()
+    {
+        try
+        {
+            var document = _rules.LoadDocument(out var warning);
+            return warning is null ? document : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.Warn($"Could not read rules.json: {ex.Message}");
+            return null;
+        }
+    }
+
+    private void OpenFolder(string path)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Could not open '{path}'.", ex);
+            _tray.ShowError("Could not open folder", ex.Message);
+        }
     }
 
     private void OnExitRequested()

@@ -1,0 +1,89 @@
+<Window x:Class="TidyFile.App.Views.WorkspaceWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Create workspace"
+        Width="540"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        FontFamily="Segoe UI"
+        FontSize="13">
+
+  <Window.Resources>
+    <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+
+    <Style x:Key="Hint" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="#FF6B7280" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+      <Setter Property="Margin" Value="0,12,0,4" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- Red text that disappears when its Text is null or empty. -->
+    <Style x:Key="ErrorText" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="#FFC42B1C" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="Margin" Value="0,4,0,0" />
+      <Style.Triggers>
+        <Trigger Property="Text" Value="{x:Null}">
+          <Setter Property="Visibility" Value="Collapsed" />
+        </Trigger>
+        <Trigger Property="Text" Value="">
+          <Setter Property="Visibility" Value="Collapsed" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
+    <Style TargetType="Button">
+      <Setter Property="Padding" Value="14,5" />
+      <Setter Property="MinWidth" Value="80" />
+    </Style>
+
+    <Style TargetType="TextBox">
+      <Setter Property="Padding" Value="4,3" />
+    </Style>
+  </Window.Resources>
+
+  <StackPanel Margin="16">
+    <TextBlock Style="{StaticResource Hint}"
+               Text="Creates a standard developer folder structure with a README. Only missing folders are created; nothing is moved, overwritten or deleted." />
+
+    <TextBlock Style="{StaticResource FieldLabel}" Text="Base folder" />
+    <DockPanel>
+      <Button DockPanel.Dock="Right" Content="Browse…" Click="Browse_Click" Margin="6,0,0,0" />
+      <TextBox Text="{Binding BaseFolder, UpdateSourceTrigger=PropertyChanged}" />
+    </DockPanel>
+    <TextBlock Style="{StaticResource ErrorText}" Text="{Binding BaseFolderError}" />
+
+    <TextBlock Style="{StaticResource FieldLabel}" Text="Will create" />
+    <Border BorderBrush="#FFD1D5DB" BorderThickness="1" CornerRadius="3">
+      <ScrollViewer MaxHeight="240" VerticalScrollBarVisibility="Auto">
+        <ItemsControl ItemsSource="{Binding PreviewLines}" Margin="8,6" FontFamily="Consolas" FontSize="12" />
+      </ScrollViewer>
+    </Border>
+
+    <CheckBox Margin="0,14,0,0"
+              Content="Watch Inbox (files you drop there get suggestions)"
+              IsChecked="{Binding WatchInbox}" />
+    <CheckBox Margin="0,8,0,0"
+              Content="Suggest into the workspace"
+              IsChecked="{Binding SuggestIntoWorkspace}" />
+    <TextBlock Style="{StaticResource Hint}" Margin="20,2,0,0" Text="{Binding SuggestDescription}" />
+
+    <DockPanel Margin="0,18,0,0" LastChildFill="False">
+      <Button x:Name="UndoButton"
+              DockPanel.Dock="Left"
+              Content="{Binding UndoDescription}"
+              Click="Undo_Click"
+              Visibility="{Binding HasUndo, Converter={StaticResource BoolToVisibility}}" />
+      <!-- IsCancel alone only closes a dialog (ShowDialog); this window is shown non-modally, so Click closes it. -->
+      <Button x:Name="CancelButton" DockPanel.Dock="Right" Content="Cancel" IsCancel="True" Click="Cancel_Click" Margin="8,0,0,0" />
+      <Button DockPanel.Dock="Right" Content="Create" IsDefault="True" Click="Create_Click" IsEnabled="{Binding CanCreate}" />
+    </DockPanel>
+  </StackPanel>
+</Window>
